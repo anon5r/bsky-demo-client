@@ -51,10 +51,18 @@ function App() {
   async function initAgent(session: OAuthSession) {
     try {
         const tokenInfo = await session.getTokenInfo();
-        const agent = new Agent({
+        
+        // Create a custom session manager that satisfies Agent's expectations
+        // We need 'did' property for assertAuthenticated()
+        const sessionManager = {
             service: tokenInfo.aud,
-            fetch: (url, init) => session.fetchHandler(url.toString(), init)
-        });
+            fetch: (url: string, init?: RequestInit) => session.fetchHandler(url, init),
+            did: session.sub
+        };
+
+        // @ts-ignore
+        const agent = new Agent(sessionManager);
+        
         setAgent(agent);
     } catch (e) {
         console.error("Failed to init agent", e);

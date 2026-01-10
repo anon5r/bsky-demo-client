@@ -43,8 +43,27 @@ export async function resolveHandle(handle: string) {
 }
 
 async function getOAuthMetadata(pdsUrl: string) {
-  const res = await fetch(`${pdsUrl}/.well-known/oauth-authorization-server`);
-  if (!res.ok) throw new Error('Failed to fetch OAuth metadata from PDS');
+  const baseUrl = pdsUrl.replace(/\/$/, '');
+  
+  let issuer = baseUrl;
+  
+  // 1. Try to find the authorization server via oauth-protected-resource discovery
+  try {
+    const res = await fetch(`${baseUrl}/.well-known/oauth-protected-resource`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.authorization_servers && data.authorization_servers.length > 0) {
+        issuer = data.authorization_servers[0].replace(/\/$/, '');
+        console.log(`Discovered authorization server: ${issuer}`);
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to fetch oauth-protected-resource, falling back to PDS as issuer', e);
+  }
+
+  // 2. Fetch the metadata from the determined issuer
+  const res = await fetch(`${issuer}/.well-known/oauth-authorization-server`);
+  if (!res.ok) throw new Error(`Failed to fetch OAuth metadata from issuer (${issuer}): ${res.status}`);
   return res.json();
 }
 
