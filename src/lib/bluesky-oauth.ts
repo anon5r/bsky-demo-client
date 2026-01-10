@@ -1,23 +1,12 @@
 import { BrowserOAuthClient } from '@atproto/oauth-client-browser';
 
-const APP_URL = import.meta.env.VITE_APP_URL || 'http://localhost:5173';
-const CLIENT_METADATA_URL = `${APP_URL}/.well-known/client-metadata.json`;
+// We derive the metadata URL from the current browser location.
+// This allows the app to work on any domain (e.g. Vercel preview URLs) 
+// as long as the metadata was generated for that domain during build.
+const CLIENT_METADATA_URL = `${window.location.origin}/.well-known/client-metadata.json`;
 
-export const blueskyClient = new BrowserOAuthClient({
-  clientMetadata: undefined, // Fetched from clientMetadataUrl
-  handleResolver: 'https://bsky.social',
-});
-
-// Since clientMetadataUrl is deprecated or changed in newer versions (or specific to how we initialize), 
-// let's follow the standard pattern of loading it via `load` or just initializing if constructor allows.
-// The guide says:
-// const client = await BrowserOAuthClient.load({
-//   clientId: CLIENT_METADATA_URL,
-//   ...
-// });
-
-// So we will export a function to get or load the client instance.
-
+// We use a singleton pattern via getBlueskyClient to ensure we only load when needed
+// and with the correct configuration.
 let clientInstance: BrowserOAuthClient | null = null;
 
 export async function getBlueskyClient() {

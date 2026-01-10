@@ -1,15 +1,26 @@
 import fs from 'fs';
 import path from 'path';
 
-const APP_URL = process.env.VITE_APP_URL || 'http://localhost:5173';
+// Prefer VITE_APP_URL, fall back to VERCEL_URL (which needs https:// prepended), then localhost
+let appUrl = process.env.VITE_APP_URL;
+
+if (!appUrl && process.env.VERCEL_URL) {
+  appUrl = `https://${process.env.VERCEL_URL}`;
+}
+
+if (!appUrl) {
+  appUrl = 'http://localhost:5173';
+}
+
+console.log(`Generating client metadata for: ${appUrl}`);
 
 const clientMetadata = {
-  client_id: `${APP_URL}/.well-known/client-metadata.json`,
+  client_id: `${appUrl}/.well-known/client-metadata.json`,
   client_name: "Third-Party Demo App",
-  client_uri: APP_URL,
+  client_uri: appUrl,
   redirect_uris: [
-    `${APP_URL}/oauth/callback`,
-    `${APP_URL}/oauth/chronosky/callback`
+    `${appUrl}/oauth/callback`,
+    `${appUrl}/oauth/chronosky/callback`
   ],
   scope: "atproto transition:generic",
   grant_types: ["authorization_code", "refresh_token"],
@@ -35,4 +46,4 @@ fs.writeFileSync(
   JSON.stringify(clientMetadata, null, 2)
 );
 
-console.log(`Generated .well-known/client-metadata.json for ${APP_URL}`);
+console.log(`Generated .well-known/client-metadata.json for ${appUrl}`);

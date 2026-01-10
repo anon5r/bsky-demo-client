@@ -5,8 +5,8 @@ const CHRONOSKY_API_URL = import.meta.env.VITE_CHRONOSKY_API_URL || 'https://chr
 const CHRONOSKY_CLIENT_ID = `${CHRONOSKY_API_URL}/client-metadata.json`;
 const CHRONOSKY_PROXY_CALLBACK = `${CHRONOSKY_API_URL}/oauth/proxy/callback`;
 
-const APP_URL = import.meta.env.VITE_APP_URL || 'http://localhost:5173';
-const CHRONOSKY_REDIRECT_URI = `${APP_URL}/oauth/chronosky/callback`;
+// Use dynamic origin for redirect URI to support preview deployments
+const CHRONOSKY_REDIRECT_URI = `${window.location.origin}/oauth/chronosky/callback`;
 
 export async function resolveHandle(handle: string) {
   const res = await fetch(`https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=${handle}`);
