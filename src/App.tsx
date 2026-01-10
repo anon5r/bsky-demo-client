@@ -149,22 +149,32 @@ function App() {
 }
 
 function UserProfile({ agent, did, isChronoskyAuth }: { agent: Agent, did: string, isChronoskyAuth: boolean }) {
-    const [handle, setHandle] = useState<string>('');
+    const [profile, setProfile] = useState<any>(null);
 
     useEffect(() => {
         if (did) {
             agent.getProfile({ actor: did }).then(res => {
-                setHandle(res.data.handle);
+                setProfile(res.data);
             }).catch(console.error);
         }
     }, [agent, did]);
 
-    if (!handle) return <div>Loading profile...</div>;
+    if (!profile) return <div>Loading profile...</div>;
 
     return (
-        <div className="card">
-            <p>Welcome, @{handle}!</p>
-            {!isChronoskyAuth && <ChronoskyAuth handle={handle} />}
+        <div className="card" style={{ textAlign: 'left', display: 'flex', gap: '15px', alignItems: 'center' }}>
+            {profile.avatar && (
+                <img 
+                    src={profile.avatar} 
+                    alt={profile.handle} 
+                    style={{ width: 60, height: 60, borderRadius: '50%' }} 
+                />
+            )}
+            <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0 }}>{profile.displayName || profile.handle}</h3>
+                <p style={{ margin: 0, color: '#666' }}>@{profile.handle}</p>
+                {!isChronoskyAuth && <div style={{ marginTop: '10px' }}><ChronoskyAuth handle={profile.handle} /></div>}
+            </div>
         </div>
     );
 }

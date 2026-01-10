@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createScheduledPost } from '../lib/chronosky-xrpc-client';
+import { createScheduledPost, createScheduledThread } from '../lib/chronosky-xrpc-client';
 import { Agent } from '@atproto/api';
 
 interface PostFormProps {
@@ -9,11 +9,19 @@ interface PostFormProps {
 }
 
 export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: PostFormProps) {
-  const [text, setText] = useState('');
+  const [posts, setPosts] = useState<string[]>(['']);
   const [scheduledAt, setScheduledAt] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [mode, setMode] = useState<'now' | 'schedule'>('now');
+
+  const addPost = () => setPosts([...posts, '']);
+  const removePost = (index: number) => setPosts(posts.filter((_, i) => i !== index));
+  const updatePost = (index: number, text: string) => {
+    const newPosts = [...posts];
+    newPosts[index] = text;
+    setPosts(newPosts);
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,21 +33,44 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
         if (!isChronoskyAuthenticated) {
             throw new Error("You must connect to Chronosky to schedule posts.");
         }
-        await createScheduledPost({
-          text: text,
-          scheduledAt: new Date(scheduledAt).toISOString(),
-        });
+        
+        if (posts.length === 1) {
+          await createScheduledPost({
+            text: posts[0],
+            scheduledAt: new Date(scheduledAt).toISOString(),
+          });
+        } else {
+          await createScheduledThread({
+            posts: posts.map(text => ({ text })),
+            scheduledAt: new Date(scheduledAt).toISOString(),
+          });
+        }
+        
         setStatus('success');
-        setText('');
+        setPosts(['']);
         setScheduledAt('');
       } else {
-        // Post Now
-        await agent.post({
-            text: text,
+        // Post Now (Sequentially for threads)
+        let root: { uri: string; cid: string } | undefined = undefined;
+        let parent: { uri: string; cid: string } | undefined = undefined;
+        
+        for (const text of posts) {
+          if (!text.trim()) continue;
+          
+          const res: any = await agent.post({
+            text,
+            reply: root && parent ? { root, parent } : undefined,
             createdAt: new Date().toISOString()
-        });
+          });
+          
+          if (!root) {
+            root = { uri: res.uri, cid: res.cid };
+          }
+          parent = { uri: res.uri, cid: res.cid };
+        }
+        
         setStatus('success');
-        setText('');
+        setPosts(['']);
         if (onPostCreated) onPostCreated();
       }
     } catch (error) {
@@ -51,8 +82,8 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
 
   return (
     <div className="card">
-      <div style={{ marginBottom: '10px' }}>
-        <label style={{ marginRight: '10px' }}>
+      <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'center', gap: '20px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
             <input 
                 type="radio" 
                 name="mode" 
@@ -61,7 +92,7 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
                 onChange={() => setMode('now')} 
             /> Post Now
         </label>
-        <label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: isChronoskyAuthenticated ? 'pointer' : 'not-allowed', color: isChronoskyAuthenticated ? 'inherit' : '#999' }}>
             <input 
                 type="radio" 
                 name="mode" 
@@ -74,29 +105,61 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="What's happening?"
-          rows={3}
-          required
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {posts.map((text, index) => (
+            <div key={index} style={{ position: 'relative' }}>
+              <textarea
+                value={text}
+                onChange={(e) => updatePost(index, e.target.value)}
+                placeholder={index === 0 ? "What's happening?" : "Add another post..."}
+                rows={3}
+                required
+                style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ddd' }}
+              />
+              {posts.length > 1 && (
+                <button 
+                  type="button" 
+                  onClick={() => removePost(index)}
+                  style={{ position: 'absolute', top: '5px', right: '5px', background: '#fee', border: '1px solid #fcc', color: '#d00', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '12px', padding: 0 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button 
+            type="button" 
+            onClick={addPost}
+            style={{ background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer' }}
+          >
+            + Add to Thread
+          </button>
+          
+          {mode === 'schedule' && (
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                required={mode === 'schedule'}
+                style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc' }}
+              />
+          )}
+        </div>
         
-        {mode === 'schedule' && (
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              required={mode === 'schedule'}
-            />
-        )}
-        
-        <button type="submit" disabled={status === 'loading'}>
-          {status === 'loading' ? 'Posting...' : (mode === 'schedule' ? 'Schedule Post' : 'Post Now')}
+        <button 
+          type="submit" 
+          disabled={status === 'loading'}
+          className="login-btn"
+          style={{ width: '100%' }}
+        >
+          {status === 'loading' ? 'Processing...' : (mode === 'schedule' ? 'Schedule Thread' : 'Post Now')}
         </button>
       </form>
-      {status === 'success' && <p style={{ color: 'green' }}>{mode === 'schedule' ? 'Post scheduled!' : 'Posted successfully!'}</p>}
-      {status === 'error' && <p style={{ color: 'red' }}>Error: {errorMsg}</p>}
+      {status === 'success' && <p style={{ color: 'green', marginTop: '10px' }}>{mode === 'schedule' ? 'Thread scheduled!' : 'Thread posted successfully!'}</p>}
+      {status === 'error' && <p style={{ color: 'red', marginTop: '10px' }}>Error: {errorMsg}</p>}
     </div>
   );
 }
