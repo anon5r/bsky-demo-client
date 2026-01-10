@@ -6,6 +6,7 @@ import { OAuthCallback } from './components/OAuthCallback';
 import { ChronoskyAuth } from './components/ChronoskyAuth';
 import { PostForm } from './components/PostForm';
 import { PostList } from './components/PostList';
+import { LoginView } from './components/LoginView';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 
@@ -60,11 +61,8 @@ function App() {
     }
   }
 
-  async function login() {
+  async function handleLogin(handle: string) {
     const client = await getBlueskyClient();
-    const handle = prompt("Enter your Bluesky handle (e.g. alice.bsky.social):");
-    if (!handle) return;
-    
     try {
       await client.signIn(handle, {
         state: crypto.randomUUID(),
@@ -95,17 +93,11 @@ function App() {
         
         if (bskySession) {
             try {
-                // client.revoke is available on the client instance, but we need the sub
-                // Actually simply signing out via client is cleaner if we can
-                // But OAuthSession has signOut()
                 await bskySession.signOut();
             } catch (e) {
                 console.error("Sign out error", e);
             }
         }
-        
-        // Clear indexedDB state effectively by reloading or relying on signOut clearing it?
-        // signOut calls sessionGetter.delStored.
         
         window.location.href = '/';
       }
@@ -120,10 +112,7 @@ function App() {
       <h1>Bluesky + Chronosky Demo</h1>
       
       {!bskySession ? (
-        <div className="card">
-          <p>Please log in with your Bluesky account to continue.</p>
-          <button onClick={login}>Log in with Bluesky</button>
-        </div>
+        <LoginView onLogin={handleLogin} />
       ) : (
         <div className="dashboard">
           <div className="header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
