@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { createChronoskyClient } from '../lib/chronosky-xrpc-client';
+import { ChronoskyClient } from '../lib/chronosky-xrpc-client';
 import { Agent } from '@atproto/api';
+import { OAuthSession } from '@atproto/oauth-client-browser';
 
 interface PostFormProps {
   agent: Agent;
-  fetchHandler: (url: string, init?: RequestInit) => Promise<Response>;
+  session: OAuthSession;
   onPostCreated?: () => void;
 }
 
-export function PostForm({ agent, fetchHandler, onPostCreated }: PostFormProps) {
+export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
   const [posts, setPosts] = useState<string[]>(['']);
   const [scheduledAt, setScheduledAt] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -35,7 +35,7 @@ export function PostForm({ agent, fetchHandler, onPostCreated }: PostFormProps) 
             alert("Note: Only the first post will be scheduled. Thread scheduling is not yet supported.");
         }
         
-        const client = createChronoskyClient(fetchHandler);
+        const client = new ChronoskyClient(session.accessToken, session.dpopKey);
         await client.createPost({
           text: posts[0],
           scheduledAt: new Date(scheduledAt).toISOString(),

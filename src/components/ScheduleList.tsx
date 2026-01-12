@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { createChronoskyClient, type ScheduleItem } from '../lib/chronosky-xrpc-client';
+import { ChronoskyClient, type ScheduleItem } from '../lib/chronosky-xrpc-client';
+import { OAuthSession } from '@atproto/oauth-client-browser';
 
 interface ScheduleListProps {
-  fetchHandler: (url: string, init?: RequestInit) => Promise<Response>;
+  session: OAuthSession;
 }
 
-export function ScheduleList({ fetchHandler }: ScheduleListProps) {
+export function ScheduleList({ session }: ScheduleListProps) {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
 
-  const client = createChronoskyClient(fetchHandler);
+  const client = new ChronoskyClient(session.accessToken, session.dpopKey);
 
   async function loadSchedules() {
     setLoading(true);
@@ -36,7 +37,7 @@ export function ScheduleList({ fetchHandler }: ScheduleListProps) {
 
   useEffect(() => {
     loadSchedules();
-  }, [fetchHandler]);
+  }, [session]);
 
   async function deleteSchedule(uri: string) {
     if (!confirm("Are you sure you want to delete this scheduled post?")) return;

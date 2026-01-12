@@ -24,16 +24,40 @@ export async function generateDPoPKeyPair(): Promise<DPoPKeyPair> {
   };
 }
 
+export async function hashAccessToken(accessToken: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(accessToken);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return btoa(String.fromCharCode(...hashArray))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
 export async function generateDPoPProof(options: {
-  privateKey: string;
-  publicKey: string;
+  privateKey: string | CryptoKey;
+  publicKey: string | CryptoKey;
   method: string;
   url: string;
   accessToken?: string;
   nonce?: string;
 }): Promise<string> {
-  const privateKeyJwk = JSON.parse(options.privateKey);
-  const publicKeyJwk = JSON.parse(options.publicKey);
+  let privateKey: CryptoKey;
+  let publicKeyJwk: jose.JWK;
+
+  if (typeof options.privateKey === 'string') {
+    const privateKeyJwk = JSON.parse(options.privateKey);
+    privateKey = await jose.importJWK(privateKeyJwk, 'ES256');
+  } else {
+    privateKey = options.privateKey;
+  }
+
+  if (typeof options.publicKey === 'string') {
+    publicKeyJwk = JSON.parse(options.publicKey);
+  } else {
+    publicKeyJwk = (await jose.exportJWK(options.publicKey)) as jose.JWK;
+  }
   
   const header = {
     alg: 'ES256',
@@ -48,28 +72,19 @@ export async function generateDPoPProof(options: {
   
   const payload: any = {
     jti: crypto.randomUUID(),
-    htm: options.method,
+    htm: options.method.toUpperCase(),
     htu: options.url,
     iat: Math.floor(Date.now() / 1000),
   };
   
   if (options.accessToken) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(options.accessToken);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashBase64 = btoa(String.fromCharCode(...hashArray))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
-    payload.ath = hashBase64;
+    payload.ath = await hashAccessToken(options.accessToken);
   }
   
   if (options.nonce) {
     payload.nonce = options.nonce;
   }
   
-  const privateKey = await jose.importJWK(privateKeyJwk, 'ES256');
   const jwt = await new jose.SignJWT(payload)
     .setProtectedHeader(header)
     .sign(privateKey);

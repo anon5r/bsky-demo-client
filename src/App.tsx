@@ -125,7 +125,7 @@ function App() {
             {agent && bskySession && (
                 <PostForm 
                     agent={agent}
-                    fetchHandler={(url, init) => bskySession.fetchHandler(url, init)}
+                    session={bskySession}
                     onPostCreated={() => setScheduleUpdateTrigger(prev => prev + 1)}
                 />
             )}
@@ -133,7 +133,7 @@ function App() {
             {bskySession && (
                 <ScheduleList 
                     key={scheduleUpdateTrigger}
-                    fetchHandler={(url, init) => bskySession.fetchHandler(url, init)} 
+                    session={bskySession}
                 />
             )}
             
