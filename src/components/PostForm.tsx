@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { ChronoskyClient } from '../lib/chronosky-xrpc-client';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
@@ -35,7 +36,15 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
             alert("Note: Only the first post will be scheduled. Thread scheduling is not yet supported.");
         }
         
-        const client = new ChronoskyClient(session.accessToken, session.dpopKey);
+        // Access internal properties of OAuthSession to get keys for manual DPoP signing
+        const accessToken = (session as any).tokenSet?.access_token || (session as any).accessToken;
+        const dpopKey = (session as any).dpopKey;
+
+        if (!accessToken || !dpopKey) {
+            throw new Error("Authentication tokens missing. Please login again.");
+        }
+
+        const client = new ChronoskyClient(accessToken, dpopKey);
         await client.createPost({
           text: posts[0],
           scheduledAt: new Date(scheduledAt).toISOString(),

@@ -48,9 +48,9 @@ export async function generateDPoPProof(options: {
 
   if (typeof options.privateKey === 'string') {
     const privateKeyJwk = JSON.parse(options.privateKey);
-    privateKey = await jose.importJWK(privateKeyJwk, 'ES256');
+    privateKey = (await jose.importJWK(privateKeyJwk, 'ES256')) as CryptoKey;
   } else {
-    privateKey = options.privateKey;
+    privateKey = options.privateKey as CryptoKey;
   }
 
   if (typeof options.publicKey === 'string') {
