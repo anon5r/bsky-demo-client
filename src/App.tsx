@@ -4,6 +4,7 @@ import { getBlueskyClient } from './lib/bluesky-oauth';
 import { OAuthCallback } from './components/OAuthCallback';
 import { PostForm } from './components/PostForm';
 import { PostList } from './components/PostList';
+import { ScheduleList } from './components/ScheduleList';
 import { LoginView } from './components/LoginView';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
@@ -12,6 +13,8 @@ function App() {
   const [bskySession, setBskySession] = useState<OAuthSession | null>(null);
   const [currentView, setCurrentView] = useState<'login' | 'dashboard' | 'callback'>('login');
   const [agent, setAgent] = useState<Agent | null>(null);
+  // Trigger to reload schedules after a new one is created
+  const [scheduleUpdateTrigger, setScheduleUpdateTrigger] = useState(0);
 
   useEffect(() => {
     const isCallback = window.location.pathname === '/oauth/callback';
@@ -123,6 +126,14 @@ function App() {
                 <PostForm 
                     agent={agent}
                     fetchHandler={(url, init) => bskySession.fetchHandler(url, init)}
+                    onPostCreated={() => setScheduleUpdateTrigger(prev => prev + 1)}
+                />
+            )}
+            
+            {bskySession && (
+                <ScheduleList 
+                    key={scheduleUpdateTrigger}
+                    fetchHandler={(url, init) => bskySession.fetchHandler(url, init)} 
                 />
             )}
             

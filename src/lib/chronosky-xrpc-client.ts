@@ -1,81 +1,133 @@
-import { Agent } from '@atproto/api';
-
 const CHRONOSKY_API_URL = import.meta.env.VITE_CHRONOSKY_API_URL || 'https://api.chronosky.app';
 
-export interface CreateScheduledPostInput {
+// Type definitions based on the guide
+export interface CreateScheduleRequest {
   text: string;
   scheduledAt: string;
-  images?: { blob: Blob; alt?: string }[];
+  replyTo?: {
+    uri: string;
+    cid: string;
+  };
+  images?: {
+    blob: Blob;
+    alt?: string;
+  }[];
   langs?: string[];
+  labels?: {
+    values: { val: string }[];
+  };
 }
 
-export interface CreateScheduledThreadInput {
-  posts: { text: string }[];
-  scheduledAt: string;
-}
-
-export interface ScheduledPost {
+export interface CreateScheduleResponse {
   uri: string;
   cid: string;
   scheduledAt: string;
 }
 
-/**
- * Creates a scheduled post using the Chronosky XRPC API.
- * Uses the authenticated fetch handler to automatically sign requests with DPoP and Access Token.
- */
-export async function createScheduledPost(
-  fetchHandler: (url: string, init?: RequestInit) => Promise<Response>, 
-  input: CreateScheduledPostInput
-): Promise<ScheduledPost> {
-  const url = new URL(`${CHRONOSKY_API_URL}/xrpc/app.chronosky.schedule.create`);
-  
-  const response = await fetchHandler(url.toString(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(input),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.message || `Chronosky API request failed: ${response.status}`);
-  }
-  
-  return response.json();
+export interface ListSchedulesRequest {
+  limit?: number;
+  cursor?: string;
+  status?: 'pending' | 'posted' | 'failed' | 'cancelled';
+}
+
+export interface ScheduleItem {
+  uri: string;
+  cid: string;
+  text: string;
+  scheduledAt: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface ListSchedulesResponse {
+  cursor?: string;
+  schedules: ScheduleItem[];
+}
+
+export interface UpdateScheduleRequest {
+  uri: string;
+  text?: string;
+  scheduledAt?: string;
+}
+
+export interface UpdateScheduleResponse {
+  uri: string;
+  cid: string;
+  scheduledAt: string;
+}
+
+export interface DeleteScheduleRequest {
+  uri: string;
+}
+
+export interface DeleteScheduleResponse {
+  success: boolean;
+}
+
+export interface ErrorResponse {
+  error: string;
+  message: string;
 }
 
 /**
- * Creates a scheduled thread.
- * Note: The official guide currently documents 'create' for single posts.
- * We assume 'createThread' or multiple calls might be needed, but sticking to previous pattern if available.
- * If 'createThread' is not in the new guide, we might need to loop 'create'.
- * The new guide DOES NOT mention createThread. It only mentions 'create'.
- * However, 'replyTo' is supported.
- * So to schedule a thread, we likely need to chain 'create' calls?
- * BUT, if we schedule post A for T, and post B for T (replying to A), 
- * we don't have A's URI yet if it's just scheduled?
- * Actually, 'create' response returns 'uri' of the *schedule*, not the future post.
- * So we cannot chain replies for *future* posts easily unless the API supports it.
- * 
- * For now, I will comment out createScheduledThread or implement it as a loop if possible, 
- * but since the prompt asked to follow the NEW guide, and the new guide doesn't mention createThread,
- * I should probably remove it or clarify.
- * 
- * However, the user's previous request implemented thread scheduling.
- * If I remove it, I break functionality.
- * I'll keep the function signature but implement it using `app.chronosky.schedule.create` if possible,
- * or assuming `createThread` still exists on the server even if not in guide.
- * 
- * Wait, the new guide is "Third Party Client Guide". Maybe `createThread` was experimental.
- * Let's assume for now we only support single post scheduling strictly per guide, 
- * OR we assume the server still has `createThread`.
- * 
- * Let's try to keep `createScheduledThread` but mapped to what we know.
- * Actually, I will remove it for now to strictly follow the guide, 
- * OR I will leave it as is but pointing to the new URL structure if I want to be risky.
- * 
- * Safe bet: Implement `createScheduledPost` strictly per guide.
- * Update PostForm to use it.
+ * Chronosky XRPC Client
+ * Uses the authenticated fetch handler from Bluesky OAuth session.
  */
+export class ChronoskyClient {
+  constructor(
+    private fetchHandler: (url: string, init?: RequestInit) => Promise<Response>,
+    private baseUrl: string = CHRONOSKY_API_URL
+  ) {}
+
+  private async request<T>(method: string, endpoint: string, body?: any, params?: URLSearchParams): Promise<T> {
+    const url = new URL(`${this.baseUrl}/xrpc/${endpoint}`);
+    if (params) {
+      url.search = params.toString();
+    }
+
+    const response = await this.fetchHandler(url.toString(), {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'UNKNOWN', message: response.statusText }));
+      // Throw a custom error object that can be checked by the caller
+      const error = new Error(errorData.message || `API Error: ${response.status}`);
+      (error as any).error = errorData.error;
+      (error as any).status = response.status;
+      throw error;
+    }
+
+    return response.json();
+  }
+
+  async createPost(input: CreateScheduleRequest): Promise<CreateScheduleResponse> {
+    return this.request('POST', 'app.chronosky.schedule.createPost', input);
+  }
+
+  async listPosts(input?: ListSchedulesRequest): Promise<ListSchedulesResponse> {
+    const params = new URLSearchParams();
+    if (input?.limit) params.append('limit', input.limit.toString());
+    if (input?.cursor) params.append('cursor', input.cursor);
+    if (input?.status) params.append('status', input.status);
+
+    return this.request('GET', 'app.chronosky.schedule.listPosts', undefined, params);
+  }
+
+  async updatePost(input: UpdateScheduleRequest): Promise<UpdateScheduleResponse> {
+    return this.request('POST', 'app.chronosky.schedule.updatePost', input);
+  }
+
+  async deletePost(input: DeleteScheduleRequest): Promise<DeleteScheduleResponse> {
+    return this.request('POST', 'app.chronosky.schedule.deletePost', input);
+  }
+}
+
+// Helper to create a client easily
+export function createChronoskyClient(fetchHandler: (url: string, init?: RequestInit) => Promise<Response>) {
+  return new ChronoskyClient(fetchHandler);
+}

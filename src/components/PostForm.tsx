@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createScheduledPost } from '../lib/chronosky-xrpc-client';
+import { createChronoskyClient } from '../lib/chronosky-xrpc-client';
 import { Agent } from '@atproto/api';
 
 interface PostFormProps {
@@ -12,7 +12,7 @@ export function PostForm({ agent, fetchHandler, onPostCreated }: PostFormProps) 
   const [posts, setPosts] = useState<string[]>(['']);
   const [scheduledAt, setScheduledAt] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
   const [mode, setMode] = useState<'now' | 'schedule'>('now');
 
   const addPost = () => setPosts([...posts, '']);
@@ -31,12 +31,12 @@ export function PostForm({ agent, fetchHandler, onPostCreated }: PostFormProps) 
     try {
       if (mode === 'schedule') {
         // Chronosky Schedule
-        // Note: Currently only single post scheduling is supported by the guide.
         if (posts.length > 1) {
             alert("Note: Only the first post will be scheduled. Thread scheduling is not yet supported.");
         }
         
-        await createScheduledPost(fetchHandler, {
+        const client = createChronoskyClient(fetchHandler);
+        await client.createPost({
           text: posts[0],
           scheduledAt: new Date(scheduledAt).toISOString(),
         });
@@ -44,6 +44,7 @@ export function PostForm({ agent, fetchHandler, onPostCreated }: PostFormProps) 
         setStatus('success');
         setPosts(['']);
         setScheduledAt('');
+        if (onPostCreated) onPostCreated();
       } else {
         // Post Now (Sequentially for threads)
         let root: { uri: string; cid: string } | undefined = undefined;
@@ -68,10 +69,19 @@ export function PostForm({ agent, fetchHandler, onPostCreated }: PostFormProps) 
         setPosts(['']);
         if (onPostCreated) onPostCreated();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setStatus('error');
-      setErrorMsg(error instanceof Error ? error.message : 'Unknown error');
+      
+      if (error.error === 'USER_NOT_REGISTERED') {
+        setErrorMsg(
+          <span>
+            User is not registered in Chronosky. Please <a href="https://chronosky.app" target="_blank" rel="noopener noreferrer">sign up first</a>.
+          </span>
+        );
+      } else {
+        setErrorMsg(error instanceof Error ? error.message : 'Unknown error');
+      }
     }
   }
 
