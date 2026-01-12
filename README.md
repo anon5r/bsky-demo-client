@@ -1,24 +1,23 @@
 # Bluesky + Chronosky Demo App
 
-このプロジェクトは、Bluesky の OAuth ログインと、サードパーティサービスである Chronosky (スケジュール投稿) の連携を実演するデモアプリケーションです。
+このプロジェクトは、Bluesky の OAuth ログインと Chronosky (スケジュール投稿サービス) の API 連携を実演するデモアプリケーションです。
 
 ## 特徴
 
-- **Bluesky OAuth ログイン**: `@atproto/oauth-client-browser` を使用したセキュアな認証。
-- **タイムライン表示**: 自身の最新の投稿を取得・表示。
-- **ポスト投稿 & 削除**: Bluesky への直接投稿と、既存の投稿の削除。
-- **Chronosky 連携**: 
-    - 代理 OAuth フローを使用したサードパーティ API への認可。
-    - DPoP (Demonstrating Proof-of-Possession) を使用した XRPC リクエスト。
-    - 日時を指定したスケジュール投稿機能。
+- **Bluesky OAuth ログイン**: `@atproto/oauth-client-browser` を使用したセキュアな認証
+- **プロフィール表示**: ログインユーザーのプロフィール情報を表示
+- **タイムライン表示**: 自身の最新の投稿を取得・表示
+- **即時投稿**: Bluesky への直接投稿（単一投稿およびスレッド投稿をサポート）
+- **投稿削除**: 既存の投稿を削除
+- **スケジュール投稿**: Chronosky API を使用した日時指定の投稿（単一投稿のみ）
 
 ## 技術スタック
 
 - **Frontend**: React 19, TypeScript, Vite
-- **Libraries**: 
+- **Libraries**:
     - `@atproto/api`: Bluesky/AT Protocol 操作
-    - `@atproto/oauth-client-browser`: OAuth 認証
-    - `jose`: DPoP Proof 生成のための JWT/JWK 操作
+    - `@atproto/oauth-client-browser`: OAuth 認証と DPoP による認証済みリクエスト
+    - `jose`: DPoP 関連のユーティリティ
 - **Deployment**: Vercel (SPA)
 
 ## セットアップ
@@ -53,14 +52,32 @@ npm run dev
 
 ## プロジェクト構造
 
-- `src/lib/`: OAuth および XRPC クライアントのロジック
-    - `bluesky-oauth.ts`: Bluesky ログイン用
-    - `chronosky-oauth.ts`: Chronosky 認可フロー (Proxy)
-    - `chronosky-xrpc-client.ts`: スケジュール投稿 API 呼び出し
-    - `dpop.ts`: DPoP Proof 生成ユーティリティ
-- `src/components/`: UI コンポーネント
-    - `OAuthCallback.tsx`: ログイン後のリダイレクト処理
-    - `PostForm.tsx`: 投稿（即時・予約）フォーム
-    - `PostList.tsx`: タイムライン表示と削除機能
-- `scripts/`: ビルド済みメタデータ生成スクリプト
-- `vercel.json`: Vercel 用のデプロイ設定
+```
+bsky-client-demo/
+├── src/
+│   ├── lib/
+│   │   ├── bluesky-oauth.ts          # Bluesky OAuth クライアント
+│   │   ├── chronosky-xrpc-client.ts  # Chronosky API 呼び出し
+│   │   └── dpop.ts                    # DPoP 関連ユーティリティ
+│   ├── components/
+│   │   ├── LoginView.tsx              # ログイン画面
+│   │   ├── OAuthCallback.tsx          # OAuth コールバック処理
+│   │   ├── PostForm.tsx               # 投稿フォーム（即時 & スケジュール）
+│   │   └── PostList.tsx               # タイムライン表示と削除機能
+│   ├── App.tsx                        # メインアプリケーション
+│   └── main.tsx                       # エントリーポイント
+├── scripts/
+│   └── generate-client-metadata.mjs   # OAuth メタデータ生成
+├── public/
+│   └── .well-known/
+│       └── client-metadata.json       # OAuth クライアントメタデータ（自動生成）
+└── vercel.json                        # Vercel デプロイ設定
+```
+
+## アーキテクチャ
+
+このアプリケーションは、Bluesky OAuth を使用してログインし、取得したセッションの認証済み `fetchHandler` を使って Chronosky API にアクセスします。
+
+1. **Bluesky OAuth ログイン**: ユーザーが自分の Bluesky アカウントでログイン
+2. **セッション取得**: `@atproto/oauth-client-browser` が DPoP 付きのセッションを管理
+3. **Chronosky API アクセス**: セッションの `fetchHandler` を使って Chronosky API にリクエスト（DPoP と Access Token は自動的に付与される）

@@ -1,27 +1,28 @@
-# Third-Party Demo App - AI Assistant Instructions
+# Bluesky + Chronosky Demo App - AI Assistant Instructions
 
-このドキュメントは、Chronosky XRPC API と連携するサードパーティアプリケーションの実装に関する完全なガイドです。
+このドキュメントは、Bluesky OAuth と Chronosky API を使用したサードパーティアプリケーションの実装に関するガイドです。
 
 ## プロジェクト概要
 
 ### 目的
 - **Bluesky OAuth** による第三者アプリケーションログインのデモ
-- **Chronosky XRPC API** への OAuth アクセスとスケジュール投稿機能のデモ
-- 2つの異なる OAuth フローを1つのアプリで実現
+- **Chronosky API** を使用したスケジュール投稿機能のデモ
+- Bluesky OAuth セッションの認証済み fetchHandler を使った安全な API アクセス
 
 ### アーキテクチャ
 
 ```
 Third-Party Demo App (React + Vite SPA)
-├── Bluesky OAuth Flow (ユーザーログイン)
-│   └── Third-Party App → PDS → Third-Party App
-│       client_id: 自身の client_id
-│       redirect_uri: /oauth/callback
-│
-└── Chronosky OAuth Flow (API アクセス)
-    └── Third-Party App → PDS → Chronosky API → Third-Party App
-        client_id: Chronosky API の client_id
-        redirect_uri: /oauth/chronosky/callback (プロキシ経由)
+└── Bluesky OAuth Flow
+    ├── ユーザーログイン
+    │   └── Third-Party App → PDS → Third-Party App
+    │       client_id: 自身の client_id
+    │       redirect_uri: /oauth/callback
+    │
+    └── Chronosky API アクセス
+        └── Bluesky セッションの fetchHandler を使用
+            - DPoP と Access Token は自動的に付与される
+            - Chronosky API エンドポイント: https://api.chronosky.app
 ```
 
 ## 技術スタック
@@ -29,11 +30,12 @@ Third-Party Demo App (React + Vite SPA)
 ### フロントエンド
 - **React 19** - UI フレームワーク
 - **TypeScript** - 型安全性
-- **Vite** - ビルドツール
+- **Vite** - ビルドツール（rolldown-vite 使用）
 
 ### OAuth ライブラリ
-- **@atproto/oauth-client-browser** - Bluesky OAuth 実装
-- **jose** - JWT/JWK 操作（DPoP 生成）
+- **@atproto/oauth-client-browser** - Bluesky OAuth 実装（DPoP サポート）
+- **@atproto/api** - Bluesky/AT Protocol 操作
+- **jose** - JWT/JWK 操作（DPoP 関連のユーティリティ）
 
 ### デプロイ
 - **Vercel** - 本番環境（推奨）
@@ -46,18 +48,19 @@ Third-Party Demo App (React + Vite SPA)
 ```json
 {
   "dependencies": {
-    "@atproto/api": "^0.16.11",
-    "@atproto/oauth-client-browser": "0.3.27",
-    "jose": "^5.9.6",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "@atproto/api": "^0.18.13",
+    "@atproto/oauth-client-browser": "^0.3.39",
+    "jose": "^6.1.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/react": "^19.0.6",
-    "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.9.3",
-    "vite": "^6.0.7"
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "typescript": "~5.9.3",
+    "vite": "npm:rolldown-vite@7.2.5"
   }
 }
 ```
@@ -69,7 +72,7 @@ Third-Party Demo App (React + Vite SPA)
 VITE_APP_URL=https://your-app.vercel.app
 
 # オプション（デフォルト値あり）
-VITE_CHRONOSKY_API_URL=https://chronopost-api.anon5r.dev
+VITE_CHRONOSKY_API_URL=https://api.chronosky.app
 ```
 
 ### 3. ビルドスクリプト
@@ -78,7 +81,7 @@ VITE_CHRONOSKY_API_URL=https://chronopost-api.anon5r.dev
 {
   "scripts": {
     "dev": "node scripts/generate-client-metadata.mjs && vite",
-    "build": "node scripts/generate-client-metadata.mjs && tsc && vite build",
+    "build": "node scripts/generate-client-metadata.mjs && tsc -b && vite build",
     "preview": "vite preview"
   }
 }
@@ -86,19 +89,16 @@ VITE_CHRONOSKY_API_URL=https://chronopost-api.anon5r.dev
 
 ## OAuth フロー実装
 
-### Bluesky OAuth Flow (ユーザーログイン)
-
-#### 1. クライアントメタデータ生成
+### 1. クライアントメタデータ生成
 
 ```javascript
 // scripts/generate-client-metadata.mjs
 const clientMetadata = {
   client_id: `${APP_URL}/.well-known/client-metadata.json`,
-  client_name: "Third-Party Demo App",
+  client_name: "Bluesky + Chronosky Demo App",
   client_uri: APP_URL,
   redirect_uris: [
-    `${APP_URL}/oauth/callback`,
-    `${APP_URL}/oauth/chronosky/callback`
+    `${APP_URL}/oauth/callback`
   ],
   scope: "atproto transition:generic",
   grant_types: ["authorization_code", "refresh_token"],
@@ -110,282 +110,236 @@ const clientMetadata = {
 };
 ```
 
-#### 2. OAuth 開始
+**重要なポイント**:
+- `dpop_bound_access_tokens: true` - DPoP を有効化
+- `redirect_uris` に `/oauth/callback` のみを指定
+
+### 2. Bluesky OAuth ログイン
 
 ```typescript
 // lib/bluesky-oauth.ts
 import { BrowserOAuthClient } from '@atproto/oauth-client-browser';
 
-const client = await BrowserOAuthClient.load({
-  clientId: CLIENT_METADATA_URL,
-  handleResolver: 'https://bsky.social',
-  responseMode: 'query',
-});
+const CLIENT_METADATA_URL = `${import.meta.env.VITE_APP_URL}/.well-known/client-metadata.json`;
 
-await client.signIn(handle, {
-  state: crypto.randomUUID(),
-  signal: new AbortController().signal,
-});
+let clientInstance: BrowserOAuthClient | null = null;
+
+export async function getBlueskyClient(): Promise<BrowserOAuthClient> {
+  if (clientInstance) return clientInstance;
+
+  clientInstance = await BrowserOAuthClient.load({
+    clientId: CLIENT_METADATA_URL,
+    handleResolver: 'https://bsky.social',
+    responseMode: 'query',
+  });
+
+  return clientInstance;
+}
 ```
 
-#### 3. コールバック処理
+### 3. ログイン処理
+
+```typescript
+// App.tsx
+async function handleLogin(handle: string) {
+  const client = await getBlueskyClient();
+  try {
+    await client.signIn(handle, {
+      state: crypto.randomUUID(),
+      prompt: 'login',
+    });
+  } catch (e) {
+    console.error("Login failed", e);
+    alert("Login failed: " + e);
+  }
+}
+```
+
+### 4. OAuth コールバック処理
 
 ```typescript
 // components/OAuthCallback.tsx
-const result = await client.signInCallback();
-const session = result.session; // IndexedDB に自動保存される
+export function OAuthCallback({ onSuccess }: OAuthCallbackProps) {
+  useEffect(() => {
+    handleCallback();
+  }, []);
 
-// セッション情報を取得
-const handle = await getHandleFromProfile(session.sub);
-```
+  async function handleCallback() {
+    try {
+      const client = await getBlueskyClient();
+      const result = await client.signInCallback();
 
-#### 4. セッション復元
+      // セッション情報を取得
+      const session = result.session;
 
-```typescript
-// アプリ起動時
-const client = await BrowserOAuthClient.load({ ... });
-const result = await client.init(); // IndexedDB から復元
+      // URL パラメータをクリア
+      window.history.replaceState({}, document.title, '/');
 
-if (result) {
-  // ログイン済み
-  setSession(result.session);
-}
-```
-
-### Chronosky OAuth Flow (API アクセス)
-
-#### アーキテクチャの重要な違い
-
-**問題**: 同じ `client_id` では2つの異なる OAuth フローを実現できない
-- sessionStorage はリダイレクトで消える
-- pathname による判別も SPA では信頼できない
-
-**解決**: プロキシフロー
-- Chronosky API が PDS とのトークン交換を代行
-- トークンを URL パラメータで Third-Party App に渡す
-
-#### 1. OAuth 開始
-
-```typescript
-// lib/chronosky-oauth.ts
-export async function startChronoskyOAuth(handle: string): Promise<string> {
-  // 1. ハンドルから DID と PDS を解決
-  const { did, pdsUrl } = await resolveHandle(handle);
-  
-  // 2. OAuth メタデータ取得
-  const metadata = await getOAuthMetadata(pdsUrl);
-  
-  // 3. DPoP キーペアと PKCE パラメータ生成
-  const dpopKeyPair = await generateDPoPKeyPair();
-  const codeVerifier = generateRandomString(128);
-  const codeChallenge = await generateCodeChallenge(codeVerifier);
-  const state = generateRandomString(32);
-  
-  // 4. localStorage/sessionStorage に保存
-  sessionStorage.setItem('chronosky_oauth_state', state);
-  sessionStorage.setItem('chronosky_code_verifier', codeVerifier);
-  localStorage.setItem('chronosky_dpop_keypair', JSON.stringify(dpopKeyPair));
-  localStorage.setItem('chronosky_user_did', did);
-  
-  // 5. プロキシリダイレクト URI を構築
-  const proxyRedirectUri = new URL(CHRONOSKY_PROXY_CALLBACK);
-  proxyRedirectUri.searchParams.set('callback_url', CHRONOSKY_REDIRECT_URI);
-  
-  // 6. 認可 URL を構築（Chronosky API の client_id を使用）
-  const authUrl = new URL(metadata.authorizationEndpoint);
-  authUrl.searchParams.set('client_id', CHRONOSKY_CLIENT_ID);
-  authUrl.searchParams.set('redirect_uri', proxyRedirectUri.toString());
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('scope', 'atproto transition:generic');
-  authUrl.searchParams.set('state', state);
-  authUrl.searchParams.set('code_challenge', codeChallenge);
-  authUrl.searchParams.set('code_challenge_method', 'S256');
-  authUrl.searchParams.set('login_hint', handle);
-  
-  return authUrl.toString();
-}
-```
-
-#### 2. プロキシサーバー実装 (Chronosky API)
-
-```typescript
-// Chronosky API: /oauth/proxy/callback
-app.get('/oauth/proxy/callback', async c => {
-  const code = c.req.query('code');
-  const state = c.req.query('state');
-  const iss = c.req.query('iss');
-  const callbackUrl = c.req.query('callback_url');
-  
-  // トークン交換
-  const result = await oauthClient.exchangeCodeForTokens({ code, state, iss });
-  
-  // Third-Party App にリダイレクト（トークンをパラメータで渡す）
-  const redirectUrl = new URL(callbackUrl);
-  redirectUrl.searchParams.set('state', state);
-  redirectUrl.searchParams.set('token', result.tokens.access_token);
-  redirectUrl.searchParams.set('refresh_token', result.tokens.refresh_token || '');
-  redirectUrl.searchParams.set('expires_at', (Date.now() + result.tokens.expires_in * 1000).toString());
-  
-  return c.redirect(redirectUrl.toString());
-});
-```
-
-#### 3. コールバック処理 (Third-Party App)
-
-```typescript
-// components/OAuthCallback.tsx
-async function handleChronoskyCallback(
-  code: string | null,
-  state: string,
-  handle: string,
-  token?: string | null,
-  refreshToken?: string | null,
-  expiresAt?: string | null
-) {
-  // state 検証
-  const storedState = sessionStorage.getItem('chronosky_oauth_state');
-  if (state !== storedState) {
-    throw new Error('Invalid state parameter');
+      // 親コンポーネントに通知
+      onSuccess(session);
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      // エラー時はログイン画面に戻る
+      window.location.href = '/';
+    }
   }
-  
-  // プロキシフローではトークンが直接渡される
-  if (!token) {
-    throw new Error('No access token provided by Chronosky API proxy');
-  }
-  
-  // トークンを localStorage に保存
-  const chronoskyTokens = {
-    accessToken: token,
-    refreshToken: refreshToken || '',
-    expiresAt: expiresAt ? parseInt(expiresAt, 10) : (Date.now() + 3600 * 1000),
-  };
-  
-  localStorage.setItem('chronosky_tokens', JSON.stringify(chronoskyTokens));
-  
-  // クリーンアップ
-  sessionStorage.removeItem('chronosky_oauth_state');
-  sessionStorage.removeItem('chronosky_code_verifier');
+
+  return <div>Completing login...</div>;
 }
 ```
 
-#### 4. DPoP 実装
+### 5. セッション復元
 
 ```typescript
-// lib/dpop.ts
-import * as jose from 'jose';
+// App.tsx
+async function checkAuth() {
+  try {
+    const client = await getBlueskyClient();
+    const result = await client.init(); // IndexedDB から復元
 
-export async function generateDPoPKeyPair(): Promise<DPoPKeyPair> {
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: 'ECDSA',
-      namedCurve: 'P-256',
-    },
-    true,
-    ['sign', 'verify']
-  );
-  
-  const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
-  const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
-  
-  return {
-    privateKey: JSON.stringify(privateKeyJwk),
-    publicKey: JSON.stringify(publicKeyJwk),
-  };
-}
-
-export async function generateDPoPProof(options: {
-  privateKey: string;
-  publicKey: string;
-  method: string;
-  url: string;
-  accessToken?: string;
-  nonce?: string;
-}): Promise<string> {
-  const privateKeyJwk = JSON.parse(options.privateKey);
-  const publicKeyJwk = JSON.parse(options.publicKey);
-  
-  const header = {
-    alg: 'ES256',
-    typ: 'dpop+jwt',
-    jwk: {
-      kty: publicKeyJwk.kty,
-      crv: publicKeyJwk.crv,
-      x: publicKeyJwk.x,
-      y: publicKeyJwk.y,
-    },
-  };
-  
-  const payload: any = {
-    jti: crypto.randomUUID(),
-    htm: options.method,
-    htu: options.url,
-    iat: Math.floor(Date.now() / 1000),
-  };
-  
-  if (options.accessToken) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(options.accessToken);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashBase64 = btoa(String.fromCharCode(...hashArray))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
-    payload.ath = hashBase64;
+    if (result) {
+      setBskySession(result.session);
+      await initAgent(result.session);
+      setCurrentView('dashboard');
+    }
+  } catch (e) {
+    console.error("Auth check failed", e);
   }
-  
-  if (options.nonce) {
-    payload.nonce = options.nonce;
-  }
-  
-  const privateKey = await jose.importJWK(privateKeyJwk, 'ES256');
-  const jwt = await new jose.SignJWT(payload)
-    .setProtectedHeader(header)
-    .sign(privateKey);
-  
-  return jwt;
 }
 ```
 
-### XRPC API 呼び出し
+### 6. Agent 初期化
+
+```typescript
+// App.tsx
+async function initAgent(session: OAuthSession) {
+  try {
+    const tokenInfo = await session.getTokenInfo();
+
+    // Agent 用のセッションマネージャーを作成
+    const sessionManager = {
+      service: tokenInfo.aud,
+      fetch: (url: string, init?: RequestInit) => session.fetchHandler(url, init),
+      did: session.sub
+    };
+
+    // @ts-ignore
+    const agent = new Agent(sessionManager);
+
+    setAgent(agent);
+  } catch (e) {
+    console.error("Failed to init agent", e);
+  }
+}
+```
+
+## Chronosky API 連携
+
+### 概要
+
+Chronosky API へのアクセスには、Bluesky OAuth セッションの認証済み `fetchHandler` を使用します。この fetchHandler は、自動的に以下を処理します：
+
+- DPoP Proof の生成と付与
+- Access Token の付与
+- トークンのリフレッシュ（必要な場合）
+
+### スケジュール投稿の実装
 
 ```typescript
 // lib/chronosky-xrpc-client.ts
-export async function createScheduledPost(input: CreateScheduledPostInput): Promise<ScheduledPost> {
-  const authState = getChronoskyAuthState();
-  
-  if (!authState.tokens || !authState.dpopKeyPair) {
-    throw new Error('Not authenticated with Chronosky');
-  }
-  
-  const url = new URL(`/xrpc/app.chronosky.schedule.createPost`, CHRONOSKY_API_URL);
-  
-  // DPoP Proof 生成
-  const dpopProof = await generateDPoPProof({
-    privateKey: authState.dpopKeyPair.privateKey,
-    publicKey: authState.dpopKeyPair.publicKey,
-    method: 'POST',
-    url: url.toString(),
-    accessToken: authState.tokens.accessToken,
-  });
-  
-  // リクエスト
-  const response = await fetch(url.toString(), {
+import { Agent } from '@atproto/api';
+
+const CHRONOSKY_API_URL = import.meta.env.VITE_CHRONOSKY_API_URL || 'https://api.chronosky.app';
+
+export interface CreateScheduledPostInput {
+  text: string;
+  scheduledAt: string;
+  images?: { blob: Blob; alt?: string }[];
+  langs?: string[];
+}
+
+export interface ScheduledPost {
+  uri: string;
+  cid: string;
+  scheduledAt: string;
+}
+
+/**
+ * Creates a scheduled post using the Chronosky XRPC API.
+ * Uses the authenticated fetch handler to automatically sign requests with DPoP and Access Token.
+ */
+export async function createScheduledPost(
+  fetchHandler: (url: string, init?: RequestInit) => Promise<Response>,
+  input: CreateScheduledPostInput
+): Promise<ScheduledPost> {
+  const url = new URL(`${CHRONOSKY_API_URL}/xrpc/app.chronosky.schedule.create`);
+
+  const response = await fetchHandler(url.toString(), {
     method: 'POST',
     headers: {
-      'Authorization': `DPoP ${authState.tokens.accessToken}`,
-      'DPoP': dpopProof,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(input),
   });
-  
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'XRPC request failed');
+    const error = await response.json().catch(() => ({ message: response.statusText }));
+    throw new Error(error.message || `Chronosky API request failed: ${response.status}`);
   }
-  
+
   return response.json();
+}
+```
+
+### UI での使用例
+
+```typescript
+// components/PostForm.tsx
+async function handleSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  setStatus('loading');
+  setErrorMsg('');
+
+  try {
+    if (mode === 'schedule') {
+      // Chronosky Schedule (単一投稿のみ)
+      await createScheduledPost(fetchHandler, {
+        text: posts[0],
+        scheduledAt: new Date(scheduledAt).toISOString(),
+      });
+
+      setStatus('success');
+      setPosts(['']);
+      setScheduledAt('');
+    } else {
+      // Post Now (Sequentially for threads)
+      let root: { uri: string; cid: string } | undefined = undefined;
+      let parent: { uri: string; cid: string } | undefined = undefined;
+
+      for (const text of posts) {
+        if (!text.trim()) continue;
+
+        const res: any = await agent.post({
+          text,
+          reply: root && parent ? { root, parent } : undefined,
+          createdAt: new Date().toISOString()
+        });
+
+        if (!root) {
+          root = { uri: res.uri, cid: res.cid };
+        }
+        parent = { uri: res.uri, cid: res.cid };
+      }
+
+      setStatus('success');
+      setPosts(['']);
+      if (onPostCreated) onPostCreated();
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus('error');
+    setErrorMsg(error instanceof Error ? error.message : 'Unknown error');
+  }
 }
 ```
 
@@ -395,137 +349,37 @@ export async function createScheduledPost(input: CreateScheduledPostInput): Prom
 
 ```typescript
 function App() {
-  const [isBlueskyAuthenticated, setIsBlueskyAuthenticated] = useState(false);
-  const [isChronoskyAuthenticated, setIsChronoskyAuthenticated] = useState(false);
-  const [blueskySession, setBlueskySession] = useState<BlueskySession | null>(null);
+  const [bskySession, setBskySession] = useState<OAuthSession | null>(null);
   const [currentView, setCurrentView] = useState<'login' | 'dashboard' | 'callback'>('login');
-  
+  const [agent, setAgent] = useState<Agent | null>(null);
+
   useEffect(() => {
-    // OAuth コールバック検出
-    const searchParams = new URLSearchParams(window.location.search);
-    const hasCode = searchParams.has('code') && searchParams.has('state');
-    const hasToken = searchParams.has('token') && searchParams.has('state');
-    
-    const isBlueskyCallback = window.location.pathname === '/oauth/callback';
-    const isChronoskyCallback = window.location.pathname === '/oauth/chronosky/callback';
-    
-    if ((hasCode || hasToken) && (isBlueskyCallback || isChronoskyCallback)) {
-      // OAuth callback in progress
+    const isCallback = window.location.pathname === '/oauth/callback';
+
+    if (isCallback) {
       setCurrentView('callback');
       return;
     }
-    
-    // 通常のページロード - 認証状態確認
-    checkAuthStatus();
+
+    checkAuth();
   }, []);
-  
-  async function checkAuthStatus() {
-    const session = await getBlueskySession();
-    setIsBlueskyAuthenticated(!!session);
-    setBlueskySession(session);
-    
-    const chronoskyAuth = getChronoskyAuthState();
-    setIsChronoskyAuthenticated(!!chronoskyAuth.tokens);
-    
-    if (session) {
-      setCurrentView('dashboard');
-    }
-  }
-  
+
   // ... rest of component
 }
 ```
 
-### OAuthCallback.tsx
+### LoginView.tsx
 
-```typescript
-export function OAuthCallback({ onSuccess }: OAuthCallbackProps) {
-  useEffect(() => {
-    handleCallback();
-  }, []);
-  
-  async function handleCallback() {
-    const searchParams = new URLSearchParams(window.location.search);
-    
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    const token = searchParams.get('token');
-    const refreshToken = searchParams.get('refresh_token');
-    const expiresAt = searchParams.get('expires_at');
-    
-    // pathname で判別
-    const isChronoskyCallback = window.location.pathname === '/oauth/chronosky/callback';
-    
-    if (isChronoskyCallback) {
-      // Chronosky OAuth callback (proxy flow)
-      const handle = sessionStorage.getItem('chronosky_oauth_handle');
-      await handleChronoskyCallback(code, state!, handle!, token, refreshToken, expiresAt);
-      
-      sessionStorage.removeItem('chronosky_oauth_handle');
-      window.history.replaceState({}, document.title, '/');
-      
-      onSuccess(); // Chronosky 認証完了
-    } else {
-      // Bluesky OAuth callback
-      const session = await handleBlueskyCallback();
-      
-      window.history.replaceState({}, document.title, '/');
-      
-      onSuccess(session); // Bluesky 認証完了
-    }
-  }
-  
-  // ... rest of component
-}
-```
+ユーザーがハンドル（例: `user.bsky.social`）を入力してログインするシンプルな UI。
 
-### ChronoskyAuth.tsx
+### PostForm.tsx
 
-```typescript
-export function ChronoskyAuth({ session, onSuccess }: ChronoskyAuthProps) {
-  async function handleAuth() {
-    const handle = session.handle;
-    
-    // sessionStorage に保存（コールバック時に使用）
-    sessionStorage.setItem('chronosky_oauth_handle', handle);
-    
-    // OAuth フロー開始
-    const authUrl = await startChronoskyOAuth(handle);
-    window.location.href = authUrl;
-  }
-  
-  // ... rest of component
-}
-```
+- **即時投稿モード**: Agent を使って直接 Bluesky に投稿（スレッドサポート）
+- **スケジュールモード**: Chronosky API を使って投稿をスケジュール（単一投稿のみ）
 
-### PostForm.tsx (スケジュール投稿)
+### PostList.tsx
 
-```typescript
-export function PostForm() {
-  const [posts, setPosts] = useState<string[]>(['']);
-  const [scheduledAt, setScheduledAt] = useState('');
-  
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    
-    if (posts.length === 1) {
-      await createScheduledPost({
-        text: posts[0],
-        scheduledAt: new Date(scheduledAt).toISOString(),
-      });
-    } else {
-      await createScheduledThread({
-        posts: posts.map(text => ({ text })),
-        scheduledAt: new Date(scheduledAt).toISOString(),
-      });
-    }
-    
-    showToast('Post(s) scheduled successfully!', 'success');
-  }
-  
-  // ... rest of component
-}
-```
+ログインユーザーの最新の投稿を表示し、削除機能を提供。
 
 ## Vercel デプロイ
 
@@ -533,9 +387,9 @@ export function PostForm() {
 
 ```json
 {
-  "buildCommand": "pnpm build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "installCommand": "pnpm install",
+  "installCommand": "npm install",
   "framework": "vite",
   "rewrites": [
     {
@@ -568,7 +422,7 @@ export function PostForm() {
 ### デプロイ手順
 
 1. **Vercel プロジェクト作成**
-   - Root Directory: プロジェクトルート（このディレクトリ）
+   - Root Directory: プロジェクトルート
    - Framework: Vite
 
 2. **環境変数設定**
@@ -586,132 +440,79 @@ export function PostForm() {
 
 ## 重要な実装ポイント
 
-### 1. SPA ルーティング
+### 1. DPoP の自動処理
 
-**問題**: Vite SPA では `pathname` がブラウザ履歴によって書き換わる可能性がある
+`@atproto/oauth-client-browser` が提供する `fetchHandler` は、以下を自動的に処理します：
 
-**解決**: 
+- DPoP Proof の生成
+- `DPoP` ヘッダーの付与
+- `Authorization: DPoP <access_token>` ヘッダーの付与
+- トークンの有効期限チェックとリフレッシュ
+
+このため、手動で DPoP を生成する必要はありません。
+
+### 2. セッション管理
+
+- セッション情報は IndexedDB に自動的に保存される
+- `client.init()` を呼び出すことで、ページリロード後もセッションを復元できる
+- ログアウト時は `session.signOut()` を呼び出す
+
+### 3. SPA ルーティング
+
 - Vercel の `rewrites` 設定で、すべてのパスを `index.html` にマッピング
-- React Router は使わず、`window.location.pathname` で直接判別
+- `window.location.pathname` で OAuth コールバックを検出
 
-### 2. OAuth パラメータの保持
+### 4. Agent の使用
 
-**問題**: sessionStorage はリダイレクトで消える可能性がある
-
-**解決**:
-- Chronosky OAuth ではプロキシフローを使用し、トークンを URL パラメータで受け取る
-- 重要な情報は localStorage に保存（DPoP キーペア、トークンなど）
-
-### 3. 2つの OAuth フローの分離
-
-**Bluesky OAuth**:
-- `client_id`: 自身の client_id
-- `redirect_uri`: `/oauth/callback`
-- セッション: IndexedDB（BrowserOAuthClient が管理）
-
-**Chronosky OAuth**:
-- `client_id`: Chronosky API の client_id
-- `redirect_uri`: `/oauth/chronosky/callback`（プロキシ経由）
-- トークン: localStorage（手動管理）
-
-### 4. DPoP 実装
-
-- ES256 アルゴリズム（ECDSA P-256）
-- JWT ヘッダーに公開鍵（JWK）を含める
-- `ath` クレーム: アクセストークンの SHA-256 ハッシュ（API リクエスト時のみ）
-
-### 5. エラーハンドリング
-
-```typescript
-try {
-  await createScheduledPost(input);
-  showToast('Success', 'success');
-} catch (error) {
-  console.error('Failed:', error);
-  showToast(
-    error instanceof Error ? error.message : 'Failed',
-    'error'
-  );
-}
-```
+`@atproto/api` の `Agent` クラスを使用して、Bluesky の標準 API（投稿取得、投稿作成、削除など）を操作します。
 
 ## トラブルシューティング
 
 ### OAuth コールバックでログイン画面に戻る
 
-**原因**: `pathname` が正しく検出されていない
+**原因**: `pathname` が正しく検出されていない、またはコールバック処理でエラーが発生
 
 **確認**:
 1. Vercel の `rewrites` 設定が正しいか
-2. `window.location.pathname` がコールバック時に正しいパスか（コンソールログで確認）
+2. ブラウザのコンソールでエラーを確認
+3. `window.location.pathname` がコールバック時に `/oauth/callback` か
 
 ### IndexedDB にセッションが保存されない
 
-**原因**: `signInCallback()` 後すぐに `init()` を呼ぶと失敗する
+**原因**: `signInCallback()` でエラーが発生している
 
 **解決**:
-- `signInCallback()` 後は `init()` を呼ばない
-- URL パラメータをクリアしてから、ページリロード時に `init()` で復元
+- `signInCallback()` の catch ブロックでエラーをログ出力
+- OAuth メタデータの `redirect_uris` が正しいか確認
 
-### DPoP エラー
+### Chronosky API でエラーが発生
 
-**原因**: DPoP Proof の生成が不正
+**原因**: fetchHandler が正しく渡されていない、または API エンドポイントが間違っている
 
 **確認**:
-1. `alg`: `ES256`
-2. `typ`: `dpop+jwt`
-3. `jwk`: 公開鍵（x, y 座標）
-4. `ath`: アクセストークンの SHA-256 ハッシュ（base64url エンコード）
+1. `session.fetchHandler` を正しく渡しているか
+2. `VITE_CHRONOSKY_API_URL` が正しく設定されているか
+3. API エンドポイント: `https://api.chronosky.app/xrpc/app.chronosky.schedule.create`
 
 ### CORS エラー
 
 **原因**: client-metadata.json のヘッダー設定不足
 
-**解決**: `vercel.json` で CORS ヘッダーを設定
+**解決**: `vercel.json` で CORS ヘッダーを設定（上記参照）
 
 ## Chronosky API エンドポイント
 
-### プロキシコールバック
+### スケジュール投稿作成
 ```
-GET https://chronopost-api.anon5r.dev/oauth/proxy/callback?code=...&state=...&callback_url=...
-```
-
-### クライアントメタデータ
-```
-GET https://chronopost-api.anon5r.dev/client-metadata.json
-```
-
-### XRPC メソッド
-
-#### スケジュール投稿作成
-```
-POST https://chronopost-api.anon5r.dev/xrpc/app.chronosky.schedule.createPost
+POST https://api.chronosky.app/xrpc/app.chronosky.schedule.create
 Headers:
-  Authorization: DPoP <access_token>
-  DPoP: <dpop_proof>
+  Authorization: DPoP <access_token>  # fetchHandler が自動付与
+  DPoP: <dpop_proof>                   # fetchHandler が自動付与
   Content-Type: application/json
 
 Body:
 {
   "text": "Hello World",
-  "scheduledAt": "2025-01-15T12:00:00Z"
-}
-```
-
-#### スレッド作成
-```
-POST https://chronopost-api.anon5r.dev/xrpc/app.chronosky.schedule.createThread
-Headers:
-  Authorization: DPoP <access_token>
-  DPoP: <dpop_proof>
-  Content-Type: application/json
-
-Body:
-{
-  "posts": [
-    { "text": "Post 1" },
-    { "text": "Post 2" }
-  ],
   "scheduledAt": "2025-01-15T12:00:00Z"
 }
 ```
@@ -736,9 +537,13 @@ Body:
 このアプリケーションは以下を実現します：
 
 1. ✅ Bluesky OAuth による第三者アプリログイン
-2. ✅ Chronosky OAuth によるスケジュール投稿 API アクセス
-3. ✅ DPoP による安全なトークンバインディング
-4. ✅ プロキシフローによる複数 OAuth フローの実現
+2. ✅ DPoP による安全なトークンバインディング（自動処理）
+3. ✅ Bluesky OAuth セッションを使った Chronosky API アクセス
+4. ✅ 即時投稿（単一 & スレッド）とスケジュール投稿（単一のみ）
 5. ✅ Vercel での SPA デプロイ
 
-別プロジェクトとして作成する際は、このドキュメントをベースに実装してください。
+**重要な変更点**（以前の実装からの変更）:
+- Chronosky 専用の OAuth フローを削除
+- プロキシフローを削除
+- スレッドスケジューリングを削除（現在は単一投稿のみ）
+- Bluesky OAuth セッションの fetchHandler を直接使用することで実装を簡略化
