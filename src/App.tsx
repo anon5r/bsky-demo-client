@@ -50,7 +50,10 @@ function App() {
         // We use the OAuth session's fetch handler for requests.
         const agent = new Agent({
             service: tokenInfo.aud,
-            fetch: (url: string, init?: RequestInit) => session.fetchHandler(url, init),
+            fetch: (url: URL | RequestInfo, init?: RequestInit) => {
+                const urlStr = url instanceof URL ? url.toString() : typeof url === 'string' ? url : url.url;
+                return session.fetchHandler(urlStr, init);
+            },
         });
 
         // Hack: Manually set session data to satisfy Agent's assertAuthenticated checks
