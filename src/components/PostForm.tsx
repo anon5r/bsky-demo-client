@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { createScheduledPost, createScheduledThread } from '../lib/chronosky-xrpc-client';
+import { createScheduledPost } from '../lib/chronosky-xrpc-client';
 import { Agent } from '@atproto/api';
 
 interface PostFormProps {
   agent: Agent;
-  isChronoskyAuthenticated: boolean;
+  fetchHandler: (url: string, init?: RequestInit) => Promise<Response>;
   onPostCreated?: () => void;
 }
 
-export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: PostFormProps) {
+export function PostForm({ agent, fetchHandler, onPostCreated }: PostFormProps) {
   const [posts, setPosts] = useState<string[]>(['']);
   const [scheduledAt, setScheduledAt] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -30,21 +30,16 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
 
     try {
       if (mode === 'schedule') {
-        if (!isChronoskyAuthenticated) {
-            throw new Error("You must connect to Chronosky to schedule posts.");
+        // Chronosky Schedule
+        // Note: Currently only single post scheduling is supported by the guide.
+        if (posts.length > 1) {
+            alert("Note: Only the first post will be scheduled. Thread scheduling is not yet supported.");
         }
         
-        if (posts.length === 1) {
-          await createScheduledPost({
-            text: posts[0],
-            scheduledAt: new Date(scheduledAt).toISOString(),
-          });
-        } else {
-          await createScheduledThread({
-            posts: posts.map(text => ({ text })),
-            scheduledAt: new Date(scheduledAt).toISOString(),
-          });
-        }
+        await createScheduledPost(fetchHandler, {
+          text: posts[0],
+          scheduledAt: new Date(scheduledAt).toISOString(),
+        });
         
         setStatus('success');
         setPosts(['']);
@@ -92,14 +87,13 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
                 onChange={() => setMode('now')} 
             /> Post Now
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: isChronoskyAuthenticated ? 'pointer' : 'not-allowed', color: isChronoskyAuthenticated ? 'inherit' : '#999' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
             <input 
                 type="radio" 
                 name="mode" 
                 value="schedule" 
                 checked={mode === 'schedule'} 
                 onChange={() => setMode('schedule')}
-                disabled={!isChronoskyAuthenticated}
             /> Schedule (Chronosky)
         </label>
       </div>
@@ -113,7 +107,7 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
                 onChange={(e) => updatePost(index, e.target.value)}
                 placeholder={index === 0 ? "What's happening?" : "Add another post..."}
                 rows={3}
-                required
+                required={index === 0} // Only first post required
                 style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ddd' }}
               />
               {posts.length > 1 && (
@@ -133,7 +127,8 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
           <button 
             type="button" 
             onClick={addPost}
-            style={{ background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer' }}
+            disabled={mode === 'schedule'} // Disable adding posts in schedule mode
+            style={{ background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', cursor: mode === 'schedule' ? 'not-allowed' : 'pointer', opacity: mode === 'schedule' ? 0.5 : 1 }}
           >
             + Add to Thread
           </button>
@@ -155,10 +150,10 @@ export function PostForm({ agent, isChronoskyAuthenticated, onPostCreated }: Pos
           className="login-btn"
           style={{ width: '100%' }}
         >
-          {status === 'loading' ? 'Processing...' : (mode === 'schedule' ? 'Schedule Thread' : 'Post Now')}
+          {status === 'loading' ? 'Processing...' : (mode === 'schedule' ? 'Schedule Post' : 'Post Now')}
         </button>
       </form>
-      {status === 'success' && <p style={{ color: 'green', marginTop: '10px' }}>{mode === 'schedule' ? 'Thread scheduled!' : 'Thread posted successfully!'}</p>}
+      {status === 'success' && <p style={{ color: 'green', marginTop: '10px' }}>{mode === 'schedule' ? 'Post scheduled!' : 'Thread posted successfully!'}</p>}
       {status === 'error' && <p style={{ color: 'red', marginTop: '10px' }}>Error: {errorMsg}</p>}
     </div>
   );

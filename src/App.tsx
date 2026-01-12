@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import { getBlueskyClient } from './lib/bluesky-oauth';
-import { getChronoskyAuthState } from './lib/chronosky-xrpc-client';
 import { OAuthCallback } from './components/OAuthCallback';
-import { ChronoskyAuth } from './components/ChronoskyAuth';
 import { PostForm } from './components/PostForm';
 import { PostList } from './components/PostList';
 import { LoginView } from './components/LoginView';
@@ -12,14 +10,11 @@ import { OAuthSession } from '@atproto/oauth-client-browser';
 
 function App() {
   const [bskySession, setBskySession] = useState<OAuthSession | null>(null);
-  const [isChronoskyAuthenticated, setIsChronoskyAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState<'login' | 'dashboard' | 'callback'>('login');
   const [agent, setAgent] = useState<Agent | null>(null);
 
   useEffect(() => {
-    const isCallback = 
-        window.location.pathname === '/oauth/callback' || 
-        window.location.pathname === '/oauth/chronosky/callback';
+    const isCallback = window.location.pathname === '/oauth/callback';
 
     if (isCallback) {
       setCurrentView('callback');
@@ -39,10 +34,6 @@ function App() {
         await initAgent(result.session);
         setCurrentView('dashboard');
       }
-
-      const chronoskyAuth = getChronoskyAuthState();
-      setIsChronoskyAuthenticated(!!chronoskyAuth.tokens);
-
     } catch (e) {
       console.error("Auth check failed", e);
     }
@@ -53,7 +44,6 @@ function App() {
         const tokenInfo = await session.getTokenInfo();
         
         // Create a custom session manager that satisfies Agent's expectations
-        // We need 'did' property for assertAuthenticated()
         const sessionManager = {
             service: tokenInfo.aud,
             fetch: (url: string, init?: RequestInit) => session.fetchHandler(url, init),
@@ -88,17 +78,13 @@ function App() {
        await initAgent(session);
        setCurrentView('dashboard');
     } else {
-        // Chronosky or other callback that didn't return a main session
         checkAuth();
     }
   }
   
   async function logout() {
       if (confirm("Are you sure you want to logout?")) {
-        localStorage.removeItem('chronosky_tokens');
-        localStorage.removeItem('chronosky_dpop_keypair');
-        localStorage.removeItem('chronosky_user_did');
-        
+        // Chronosky auth is now integrated, so no separate tokens to clear
         if (bskySession) {
             try {
                 await bskySession.signOut();
@@ -129,21 +115,14 @@ function App() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {!isChronoskyAuthenticated ? (
-                agent && bskySession ? (
-                    <UserProfile agent={agent} did={bskySession.sub} isChronoskyAuth={isChronoskyAuthenticated} />
-                ) : <div>Initializing...</div>
-            ) : (
-                <div className="card" style={{ borderColor: 'green' }}>
-                    <p>✅ Connected to Chronosky</p>
-                </div>
+            {agent && bskySession && (
+                <UserProfile agent={agent} did={bskySession.sub} />
             )}
             
-            {agent && (
+            {agent && bskySession && (
                 <PostForm 
-                    agent={agent} 
-                    isChronoskyAuthenticated={isChronoskyAuthenticated} 
-                    // onPostCreated={() => { /* Trigger refresh in PostList? Needs state lift or context */ }} 
+                    agent={agent}
+                    fetchHandler={(url, init) => bskySession.fetchHandler(url, init)}
                 />
             )}
             
@@ -156,7 +135,7 @@ function App() {
   );
 }
 
-function UserProfile({ agent, did, isChronoskyAuth }: { agent: Agent, did: string, isChronoskyAuth: boolean }) {
+function UserProfile({ agent, did }: { agent: Agent, did: string }) {
     const [profile, setProfile] = useState<any>(null);
 
     useEffect(() => {
@@ -181,7 +160,6 @@ function UserProfile({ agent, did, isChronoskyAuth }: { agent: Agent, did: strin
             <div style={{ flex: 1 }}>
                 <h3 style={{ margin: 0 }}>{profile.displayName || profile.handle}</h3>
                 <p style={{ margin: 0, color: '#666' }}>@{profile.handle}</p>
-                {!isChronoskyAuth && <div style={{ marginTop: '10px' }}><ChronoskyAuth handle={profile.handle} /></div>}
             </div>
         </div>
     );
