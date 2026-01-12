@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createChronoskyClient, ScheduleItem } from '../lib/chronosky-xrpc-client';
+import { createChronoskyClient, type ScheduleItem } from '../lib/chronosky-xrpc-client';
 
 interface ScheduleListProps {
   fetchHandler: (url: string, init?: RequestInit) => Promise<Response>;

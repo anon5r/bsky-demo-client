@@ -74,10 +74,16 @@ export interface ErrorResponse {
  * Uses the authenticated fetch handler from Bluesky OAuth session.
  */
 export class ChronoskyClient {
+  private fetchHandler: (url: string, init?: RequestInit) => Promise<Response>;
+  private baseUrl: string;
+
   constructor(
-    private fetchHandler: (url: string, init?: RequestInit) => Promise<Response>,
-    private baseUrl: string = CHRONOSKY_API_URL
-  ) {}
+    fetchHandler: (url: string, init?: RequestInit) => Promise<Response>,
+    baseUrl: string = CHRONOSKY_API_URL
+  ) {
+    this.fetchHandler = fetchHandler;
+    this.baseUrl = baseUrl;
+  }
 
   private async request<T>(method: string, endpoint: string, body?: any, params?: URLSearchParams): Promise<T> {
     const url = new URL(`${this.baseUrl}/xrpc/${endpoint}`);
