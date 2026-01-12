@@ -1,5 +1,3 @@
-import { generateDPoPProof } from './dpop';
-
 const CHRONOSKY_API_URL = import.meta.env.VITE_CHRONOSKY_API_URL || 'https://api.chronosky.app';
 
 // Type definitions based on the guide
@@ -73,20 +71,17 @@ export interface ErrorResponse {
 
 /**
  * Chronosky XRPC Client
- * Performs manual DPoP proof generation to ensure correct htm/htu claims.
+ * Uses the authenticated fetch handler from Bluesky OAuth session.
  */
 export class ChronoskyClient {
-  private accessToken: string;
-  private dpopKey: CryptoKeyPair;
+  private fetchHandler: (url: string, init?: RequestInit) => Promise<Response>;
   private baseUrl: string;
 
   constructor(
-    accessToken: string,
-    dpopKey: CryptoKeyPair,
+    fetchHandler: (url: string, init?: RequestInit) => Promise<Response>,
     baseUrl: string = CHRONOSKY_API_URL
   ) {
-    this.accessToken = accessToken;
-    this.dpopKey = dpopKey;
+    this.fetchHandler = fetchHandler;
     this.baseUrl = baseUrl;
   }
 
@@ -96,20 +91,9 @@ export class ChronoskyClient {
       url.search = params.toString();
     }
 
-    const htu = url.origin + url.pathname; // DPoP usually uses URL without query params
-    const dpopProof = await generateDPoPProof({
-      privateKey: this.dpopKey.privateKey,
-      publicKey: this.dpopKey.publicKey,
-      method: method,
-      url: htu,
-      accessToken: this.accessToken,
-    });
-
-    const response = await fetch(url.toString(), {
+    const response = await this.fetchHandler(url.toString(), {
       method: method.toUpperCase(),
       headers: {
-        'Authorization': `DPoP ${this.accessToken}`,
-        'DPoP': dpopProof,
         'Content-Type': 'application/json',
       },
       body: body ? JSON.stringify(body) : undefined,

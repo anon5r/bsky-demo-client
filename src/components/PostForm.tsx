@@ -36,15 +36,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
             alert("Note: Only the first post will be scheduled. Thread scheduling is not yet supported.");
         }
         
-        // Access internal properties of OAuthSession to get keys for manual DPoP signing
-        const accessToken = (session as any).tokenSet?.access_token || (session as any).accessToken;
-        const dpopKey = (session as any).dpopKey;
-
-        if (!accessToken || !dpopKey) {
-            throw new Error("Authentication tokens missing. Please login again.");
-        }
-
-        const client = new ChronoskyClient(accessToken, dpopKey);
+        const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
         await client.createPost({
           text: posts[0],
           scheduledAt: new Date(scheduledAt).toISOString(),

@@ -11,16 +11,9 @@ export function ScheduleList({ session }: ScheduleListProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
 
-  // Access internal properties
-  const accessToken = (session as any).tokenSet?.access_token || (session as any).accessToken;
-  const dpopKey = (session as any).dpopKey;
-
-  const client = (accessToken && dpopKey) 
-    ? new ChronoskyClient(accessToken, dpopKey)
-    : null;
+  const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
 
   async function loadSchedules() {
-    if (!client) return;
     setLoading(true);
     setErrorMsg('');
     try {
@@ -47,7 +40,6 @@ export function ScheduleList({ session }: ScheduleListProps) {
   }, [session]);
 
   async function deleteSchedule(uri: string) {
-    if (!client) return;
     if (!confirm("Are you sure you want to delete this scheduled post?")) return;
     try {
       await client.deletePost({ uri });

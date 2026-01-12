@@ -46,15 +46,23 @@ function App() {
     try {
         const tokenInfo = await session.getTokenInfo();
         
-        // Create a custom session manager that satisfies Agent's expectations
-        const sessionManager = {
+        // Agent expects a session object to be authenticated.
+        // We use the OAuth session's fetch handler for requests.
+        const agent = new Agent({
             service: tokenInfo.aud,
             fetch: (url: string, init?: RequestInit) => session.fetchHandler(url, init),
-            did: session.sub
-        };
+        });
 
+        // Hack: Manually set session data to satisfy Agent's assertAuthenticated checks
         // @ts-ignore
-        const agent = new Agent(sessionManager);
+        agent.session = {
+            did: session.sub,
+            handle: (session as any).handle || session.sub,
+            accessJwt: 'dummy', // Not used because we override fetch, but needed for checks
+            refreshJwt: 'dummy',
+            email: 'dummy',
+            emailConfirmed: true,
+        };
         
         setAgent(agent);
     } catch (e) {
