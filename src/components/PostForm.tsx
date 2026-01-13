@@ -125,7 +125,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           // Handle images for schedule
           let embed: any = undefined;
           if (draft.images.length > 0) {
-            const uploaded = [];
+            const uploaded: { alt: string; image: BlobRef }[] = [];
             for (const img of draft.images) {
               console.log(`Compressing image: ${img.name}`);
               const compressed = await compressImage(img);
