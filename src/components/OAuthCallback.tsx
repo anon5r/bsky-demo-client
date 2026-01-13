@@ -7,10 +7,6 @@ interface OAuthCallbackProps {
 }
 
 export function OAuthCallback({ onSuccess }: OAuthCallbackProps) {
-  useEffect(() => {
-    handleCallback();
-  }, []);
-  
   async function handleCallback() {
     try {
       const client = await getBlueskyClient();
@@ -21,6 +17,10 @@ export function OAuthCallback({ onSuccess }: OAuthCallbackProps) {
       console.error("Bluesky sign-in callback failed", err);
     }
   }
+
+  useEffect(() => {
+    handleCallback();
+  }, []);
 
   return <div>Processing login...</div>;
 }
