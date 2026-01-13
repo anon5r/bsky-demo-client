@@ -19,9 +19,12 @@
 4. [認証フロー](#認証フロー)
 5. [XRPC API の使用](#xrpc-api-の使用)
 6. [利用可能なエンドポイント](#利用可能なエンドポイント)
+   - [スケジュール管理 API](#スケジュール管理-api)
+   - [メディア API](#メディア-api)
 7. [実装サンプル](#実装サンプル)
 8. [エラーハンドリング](#エラーハンドリング)
 9. [セキュリティベストプラクティス](#セキュリティベストプラクティス)
+10. [Lexicon 定義](#lexicon-定義)
 
 ## 概要
 
@@ -517,9 +520,9 @@ async function callChronoskyAPI(
 ```typescript
 interface CreateScheduleRequest {
   // 以下のいずれかが必須（両方指定された場合は posts が優先）
-  text?: string;                           // シンプルな単一投稿用
+  text?: string;                           // シンプルな単一投稿用（画像添付時は空でも可）
   posts?: Array<{                          // スレッド投稿用（高度な使用方法）
-    content: string;                       // 投稿本文
+    content: string;                       // 投稿本文（画像添付時は空でも可）
     facets?: Array<{                       // リンクやメンションの装飾（オプション）
       index: { byteStart: number; byteEnd: number };
       features: Array<{
@@ -528,6 +531,24 @@ interface CreateScheduleRequest {
         did?: string;      // メンションの場合
       }>;
     }>;
+    embed?: {                              // 画像添付（オプション）
+      $type: 'app.bsky.embed.images';
+      images: Array<{
+        alt: string;                       // 画像の代替テキスト（推奨）
+        image: {                           // uploadBlob レスポンスの blob オブジェクト
+          $type: 'blob';
+          ref: { $link: string };
+          mimeType: string;
+          size: number;
+        };
+      }>;
+    };
+    contentLabels?: {                      // セルフラベル（コンテンツ警告、オプション）
+      sexual?: boolean;                    // 性的内容
+      nudity?: boolean;                    // ヌード
+      porn?: boolean;                      // ポルノ
+      'graphic-media'?: boolean;           // 暴力的・グロテスクな画像
+    };
   }>;
 
   // 予約日時（必須）
@@ -553,15 +574,28 @@ interface CreateScheduleResponse {
 **バリデーションルール:**
 
 1. **最小予約時間:** 現在時刻から最低5分以上先に設定する必要があります
-2. **プラン制限:**
+2. **テキストと画像:**
+   - **テキストのみ:** `text` または `posts[].content` に本文を指定
+   - **画像のみ:** `embed.images` を指定し、`text` / `posts[].content` は空文字列でも可
+   - **テキスト + 画像:** 両方を指定可能
+   - **画像の alt テキスト:** アクセシビリティのため、画像の説明を `alt` フィールドに設定することを強く推奨
+3. **セルフラベル（コンテンツ警告）:**
+   - **sexual:** 性的な内容を含む投稿（成人向けコンテンツ）
+   - **nudity:** ヌードや露出の多い画像を含む投稿
+   - **porn:** ポルノグラフィックな内容を含む投稿
+   - **graphic-media:** 暴力的、グロテスク、または不快な画像を含む投稿
+   - 該当するラベルを `true` に設定することで、ユーザーに事前に警告を表示
+   - 複数のラベルを同時に指定可能
+4. **プラン制限:**
    - **文字数制限:** プランに応じた最大文字数（デフォルト: 300文字）
    - **予約可能日数:** プランに応じた最大予約日数（デフォルト: 7日）
    - **予約間隔:** 前回の予約投稿からの最小間隔（デフォルト: 1分）
    - **同時予約数:** 同時に予約できる投稿の上限（デフォルト: 50件）
    - **スレッド投稿:** プランによっては複数投稿が許可されない場合があります
    - **スレッド投稿数:** プランに応じたスレッド内投稿数の上限（デフォルト: 25件）
+   - **画像制限:** 1 投稿あたり最大 4 枚（Bluesky の制限）
 
-**使用例（シンプル）:**
+**使用例（テキストのみ）:**
 
 ```typescript
 const response = await callChronoskyAPI(
@@ -579,6 +613,116 @@ const result = await response.json();
 if (result.success) {
   console.log(`Created ${result.postIds.length} scheduled post(s)`);
 }
+```
+
+**使用例（画像のみ）:**
+
+```typescript
+// 1. 画像をアップロード
+const imageFile = await fetch('photo.jpg');
+const imageBlob = await imageFile.blob();
+const imageBuffer = await imageBlob.arrayBuffer();
+
+const uploadResponse = await fetch(
+  'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'image/jpeg',
+      'Authorization': `DPoP ${accessToken}`,
+      'DPoP': await generateDPoPProof('POST', 'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob'),
+    },
+    body: imageBuffer,
+  }
+);
+
+const { blob } = await uploadResponse.json();
+
+// 2. テキストなしで画像のみを投稿
+const response = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.createPost',
+  accessToken,
+  dpopKey,
+  {
+    posts: [
+      {
+        content: '',  // 空文字列でも可
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [
+            {
+              alt: '美しい夕焼けの写真',  // alt テキストは必ず設定
+              image: blob,
+            },
+          ],
+        },
+      },
+    ],
+    scheduledAt: '2026-01-15T10:00:00Z',
+  }
+);
+```
+
+**使用例（セルフラベル付き投稿）:**
+
+```typescript
+// 成人向けコンテンツにセルフラベルを設定
+const response = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.createPost',
+  accessToken,
+  dpopKey,
+  {
+    posts: [
+      {
+        content: '水着グラビア写真集の表紙です',
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [
+            {
+              alt: '水着グラビア写真',
+              image: blob,
+            },
+          ],
+        },
+        contentLabels: {
+          sexual: true,  // 性的内容
+          nudity: true,  // ヌード（水着含む）
+        },
+      },
+    ],
+    scheduledAt: '2026-01-15T10:00:00Z',
+  }
+);
+
+// 暴力的な画像にセルフラベルを設定
+const response2 = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.createPost',
+  accessToken,
+  dpopKey,
+  {
+    posts: [
+      {
+        content: '事故現場の写真（閲覧注意）',
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [
+            {
+              alt: '事故現場',
+              image: blob,
+            },
+          ],
+        },
+        contentLabels: {
+          'graphic-media': true,  // 暴力的・グロテスクな画像
+        },
+      },
+    ],
+    scheduledAt: '2026-01-15T10:00:00Z',
+  }
+);
 ```
 
 **使用例（スレッド投稿）:**
@@ -600,6 +744,80 @@ const response = await callChronoskyAPI(
   }
 );
 ```
+
+**使用例（画像付きスレッド投稿）:**
+
+```typescript
+// 1. 複数の画像をアップロード
+const imageBlobs = [];
+for (const imagePath of ['image1.jpg', 'image2.jpg']) {
+  const imageFile = await fetch(imagePath);
+  const imageBlob = await imageFile.blob();
+  const imageBuffer = await imageBlob.arrayBuffer();
+
+  const uploadResponse = await fetch(
+    'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Authorization': `DPoP ${accessToken}`,
+        'DPoP': await generateDPoPProof('POST', 'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob'),
+      },
+      body: imageBuffer,
+    }
+  );
+
+  const { blob } = await uploadResponse.json();
+  imageBlobs.push(blob);
+}
+
+// 2. 画像付きスレッド投稿を作成
+const response = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.createPost',
+  accessToken,
+  dpopKey,
+  {
+    posts: [
+      {
+        content: 'First post with image',
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [
+            {
+              alt: 'First image description',
+              image: imageBlobs[0],
+            },
+          ],
+        },
+      },
+      {
+        content: 'Second post with image',
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [
+            {
+              alt: 'Second image description',
+              image: imageBlobs[1],
+            },
+          ],
+        },
+      },
+      { content: 'Third post without image' },
+    ],
+    scheduledAt: '2026-01-15T10:00:00Z',
+  }
+);
+```
+
+**ポイント:**
+- スレッド内の各投稿に個別に画像を添付できます
+- すべての投稿に画像を添付する必要はありません
+- テキストなしで画像のみの投稿も可能です（`content: ''` でも可）
+- 1 つの投稿に最大 4 枚の画像を添付できます（Bluesky の制限）
+- **alt テキストの設定を強く推奨:** 視覚障害者がスクリーンリーダーで画像内容を理解できるよう、必ず画像の説明を設定してください
+- **セルフラベルの適切な設定:** 成人向けコンテンツや暴力的な画像を投稿する場合は、必ず適切なセルフラベルを設定してください。これにより、ユーザーは事前に警告を受け取り、閲覧を選択できます
 
 #### `app.chronosky.schedule.listPosts`
 
@@ -890,6 +1108,184 @@ for (const postId of threadPostIds) {
 }
 ```
 
+### メディア API
+
+#### `app.chronosky.media.uploadBlob`
+
+画像を Chronosky の ストレージに一時保存します。アップロードされた画像は予約投稿が作成されるまで一時保存され、投稿作成時に最終的な保存場所に移動されます。予約時刻になると、スケジューラが自動的に Bluesky PDS にアップロードします。
+
+**エンドポイント:** `POST /xrpc/app.chronosky.media.uploadBlob`
+
+**リクエスト:**
+
+- **Content-Type:** `image/jpeg`, `image/png`, `image/webp`, または `image/gif`
+- **Body:** バイナリ画像データ
+- **最大サイズ:** 1MB (1,000,000 bytes)
+
+**レスポンス:**
+
+```typescript
+interface UploadBlobResponse {
+  blob: {
+    $type: 'blob';                     // Blob タイプ識別子
+    ref: {
+      $link: string;                   // 画像参照 ID
+    };
+    mimeType: string;                  // MIME タイプ（例: 'image/jpeg'）
+    size: number;                      // バイト単位のサイズ
+  };
+}
+```
+
+**画像の保存フロー:**
+
+```mermaid
+graph LR
+    A[uploadBlob] -->|1. アップロード| B[Chronosky]
+    B -->|2. createPost| C[投稿と関連付け]
+    C -->|3. スケジューラ実行時| D[Bluesky PDS]
+
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#f0fff4
+    style D fill:#ffe1f5
+```
+
+1. **uploadBlob**: 画像を Chronosky にアップロード
+2. **createPost**: 投稿作成時に画像と投稿を関連付け
+3. **スケジューラ**: 予約時刻に Bluesky PDS にアップロード
+
+**重要:** Bluesky PDS は 1-2 時間以内に未参照の blob を削除するため、予約投稿では直接 PDS にアップロードせず、Chronosky を経由します。
+
+**使用例:**
+
+```typescript
+// 画像ファイルを読み込む
+const imageFile = await fetch('path/to/image.jpg');
+const imageBlob = await imageFile.blob();
+const imageBuffer = await imageBlob.arrayBuffer();
+
+// Chronosky API に画像をアップロード
+const uploadResponse = await fetch(
+  'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'image/jpeg',
+      'Authorization': `DPoP ${accessToken}`,
+      'DPoP': await generateDPoPProof('POST', 'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob'),
+    },
+    body: imageBuffer,
+  }
+);
+
+const { blob } = await uploadResponse.json();
+console.log('Uploaded blob:', blob);
+
+// このblob参照を createPost で使用
+const createPostResponse = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.createPost',
+  accessToken,
+  dpopKey,
+  {
+    posts: [
+      {
+        content: 'Check out this image!',
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [
+            {
+              alt: 'Description of the image',
+              image: blob,  // アップロードしたblobを使用
+            },
+          ],
+        },
+      },
+    ],
+    scheduledAt: '2026-01-15T10:00:00Z',
+  }
+);
+```
+
+**画像付き投稿の完全なフロー:**
+
+1. **画像をアップロード**: `app.chronosky.media.uploadBlob` を使用して Chronosky にアップロード
+2. **Blob 参照を取得**: レスポンスから `blob` オブジェクト（画像参照 ID を含む）を取得
+3. **投稿を作成**: `app.chronosky.schedule.createPost` で Blob 参照を `embed` に含める
+4. **自動処理**: 投稿作成時に画像と投稿が関連付けられ、予約時刻にスケジューラが Bluesky PDS にアップロード
+
+**複数画像の例:**
+
+```typescript
+// 複数の画像をアップロード
+const blobs = [];
+for (const imagePath of ['image1.jpg', 'image2.jpg', 'image3.jpg']) {
+  const imageFile = await fetch(imagePath);
+  const imageBlob = await imageFile.blob();
+  const imageBuffer = await imageBlob.arrayBuffer();
+
+  const uploadResponse = await fetch(
+    'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Authorization': `DPoP ${accessToken}`,
+        'DPoP': await generateDPoPProof('POST', 'https://api.chronosky.app/xrpc/app.chronosky.media.uploadBlob'),
+      },
+      body: imageBuffer,
+    }
+  );
+
+  const { blob } = await uploadResponse.json();
+  blobs.push(blob);
+}
+
+// 複数画像付き投稿を作成
+const createPostResponse = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.createPost',
+  accessToken,
+  dpopKey,
+  {
+    text: 'Multiple images post',
+    posts: [
+      {
+        content: 'Check out these images!',
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: blobs.map((blob, index) => ({
+            alt: `Image ${index + 1}`,
+            image: blob,
+          })),
+        },
+      },
+    ],
+    scheduledAt: '2026-01-15T10:00:00Z',
+  }
+);
+```
+
+**エラーレスポンス:**
+
+| エラーコード | HTTP Status | 説明 |
+|------------|-------------|------|
+| `INVALID_CONTENT_TYPE` | 400 | サポートされていない画像形式 |
+| `BLOB_TOO_LARGE` | 400 | ファイルサイズが 1MB を超過 |
+| `UPLOAD_FAILED` | 500 | 画像アップロードに失敗 |
+| `NO_ACTIVE_SESSION` | 401 | アクティブなセッションが存在しない |
+
+**重要な注意事項:**
+
+- ✅ 画像は Chronosky に一時保存されます
+- ✅ 予約時刻になるとスケジューラが自動的に Bluesky PDS にアップロードします
+- ✅ レスポンスの `blob.ref.$link` には画像参照 ID が含まれます
+- ✅ 同じ Blob 参照を複数の投稿で再利用できます（投稿作成前）
+- ⚠️ 1MB を超える画像は事前に圧縮してください
+- ⚠️ サポートされている形式: JPEG, PNG, WebP, GIF
+- ⚠️ 投稿を作成せずにアップロードした画像は、一定期間後に自動削除される可能性があります
+
 ## 実装サンプル
 
 ### 完全な TypeScript 実装例
@@ -1079,7 +1475,7 @@ console.log(`Created: ${schedule.uri}`);
    headers: {
      'Content-Type': 'application/json',
      'Authorization': `DPoP ${accessToken}`,  // 必須
-     'DPoP': dpopProof                        // 必須
+     'DPoP': dpopProof,                       // 必須
    }
    ```
 
@@ -1529,6 +1925,235 @@ async function verifyUserDID(expectedDID: string): Promise<boolean> {
 }
 ```
 
+## Lexicon 定義
+
+Chronosky XRPC API の Lexicon 定義は AT Protocol の標準形式に従っています。以下は各エンドポイントの完全な Lexicon 定義です。
+
+### `app.chronosky.schedule.createPost`
+
+スケジュール投稿を作成します。
+
+<details>
+<summary>Lexicon 定義を表示</summary>
+
+```json
+{
+  "lexicon": 1,
+  "id": "app.chronosky.schedule.createPost",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Schedule one or more posts for later publishing to Bluesky.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "Simple single post content (backward compatibility). Can be empty if image is attached.",
+              "maxLength": 3000
+            },
+            "posts": {
+              "type": "array",
+              "description": "Thread posts array. Each post can have text, images, or both.",
+              "items": { "type": "ref", "ref": "#threadPostItem" }
+            },
+            "scheduledAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "ISO 8601 datetime for publication."
+            },
+            "parentPostRecordKey": { "type": "string" },
+            "threadgateRules": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["mention", "follower", "following"] }
+            },
+            "disableQuotePosts": { "type": "boolean", "default": false }
+          },
+          "required": ["scheduledAt"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["id", "scheduledAt", "status", "postCount"],
+          "properties": {
+            "id": { "type": "string" },
+            "scheduledAt": { "type": "string", "format": "datetime" },
+            "status": { "type": "string", "enum": ["PENDING", "EXECUTING", "COMPLETED", "FAILED", "CANCELLED"] },
+            "postCount": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "threadPostItem": {
+      "type": "object",
+      "description": "Thread post item. Either 'content' or 'embed' must be specified.",
+      "properties": {
+        "content": {
+          "type": "string",
+          "maxLength": 3000,
+          "maxGraphemes": 300,
+          "description": "Post text content. Can be empty if 'embed' is specified."
+        },
+        "languages": { "type": "array", "items": { "type": "string", "format": "language" } },
+        "facets": { "type": "array", "items": { "type": "ref", "ref": "app.bsky.richtext.facet" } },
+        "embed": {
+          "type": "union",
+          "refs": ["app.bsky.embed.images", "app.bsky.embed.external", "app.bsky.embed.record"],
+          "description": "Embedded media (images, external link, or record). Required if 'content' is empty."
+        },
+        "contentLabels": {
+          "type": "object",
+          "description": "Self-labels for content warnings.",
+          "properties": {
+            "sexual": { "type": "boolean", "description": "Sexual content (adult content)" },
+            "nudity": { "type": "boolean", "description": "Nudity or revealing imagery" },
+            "porn": { "type": "boolean", "description": "Pornographic content" },
+            "graphic-media": { "type": "boolean", "description": "Violent, gory, or disturbing imagery" }
+          }
+        }
+      }
+    }
+  }
+}
+```
+</details>
+
+### `app.chronosky.schedule.listPosts`
+
+ユーザーの予約投稿一覧を取得します。
+
+<details>
+<summary>Lexicon 定義を表示</summary>
+
+```json
+{
+  "lexicon": 1,
+  "id": "app.chronosky.schedule.listPosts",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List scheduled posts with pagination.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "status": { "type": "string", "enum": ["pending", "executing", "completed", "failed", "cancelled"] },
+          "page": { "type": "integer", "default": 1, "minimum": 1 },
+          "limit": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["posts", "pagination"],
+          "properties": {
+            "posts": { "type": "array", "items": { "type": "ref", "ref": "#scheduledPost" } },
+            "pagination": { "type": "ref", "ref": "#pagination" }
+          }
+        }
+      }
+    },
+    "scheduledPost": {
+      "type": "object",
+      "required": ["id", "content", "scheduledAt", "status", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "scheduledAt": { "type": "string", "format": "datetime" },
+        "status": { "type": "string", "enum": ["PENDING", "EXECUTING", "COMPLETED", "FAILED", "CANCELLED"] },
+        "createdAt": { "type": "string", "format": "datetime" },
+        "updatedAt": { "type": "string", "format": "datetime" }
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "required": ["page", "limit", "total", "totalPages"],
+      "properties": {
+        "page": { "type": "integer", "minimum": 1 },
+        "limit": { "type": "integer", "minimum": 1 },
+        "total": { "type": "integer", "minimum": 0 },
+        "totalPages": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
+```
+</details>
+
+### `app.chronosky.media.uploadBlob`
+
+画像を Chronosky の R2 ストレージに一時保存します。
+
+<details>
+<summary>Lexicon 定義を表示</summary>
+
+```json
+{
+  "lexicon": 1,
+  "id": "app.chronosky.media.uploadBlob",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Upload an image blob to Chronosky R2 storage. Images are stored temporarily until used in a scheduled post.",
+      "input": {
+        "encoding": "image/*",
+        "description": "Binary image data. Supported formats: JPEG, PNG, WebP, GIF. Maximum size: 1MB (1,000,000 bytes)."
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["blob"],
+          "properties": {
+            "blob": { "type": "ref", "ref": "#blob" }
+          }
+        }
+      }
+    },
+    "blob": {
+      "type": "object",
+      "required": ["$type", "ref", "mimeType", "size"],
+      "properties": {
+        "$type": { "type": "string", "const": "blob" },
+        "ref": {
+          "type": "object",
+          "required": ["$link"],
+          "properties": {
+            "$link": { "type": "string" }
+          }
+        },
+        "mimeType": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+      }
+    }
+  }
+}
+```
+</details>
+
+### その他のエンドポイント
+
+- **`app.chronosky.schedule.getPost`**: 特定の投稿を取得
+- **`app.chronosky.schedule.updatePost`**: 投稿を更新
+- **`app.chronosky.schedule.deletePost`**: 投稿を削除
+
+完全な Lexicon 定義は [lexicons/app/chronosky](https://github.com/your-org/chronopost/tree/main/lexicons/app/chronosky) で確認できます。
+
+### AT Protocol との互換性
+
+Chronosky の Lexicon は AT Protocol の標準に準拠しており、以下の既存レキシコンを参照しています：
+
+- **`app.bsky.richtext.facet`** - リンク、メンション、タグの装飾
+- **`app.bsky.embed.images`** - 画像埋め込み
+- **`app.bsky.embed.external`** - 外部リンク埋め込み
+- **`app.bsky.embed.record`** - 投稿引用
+
+これにより、Bluesky の既存クライアントとの相互運用性が確保されます。
+
 ## サポート
 
 ### 問題が発生した場合
@@ -1540,6 +2165,7 @@ async function verifyUserDID(expectedDID: string): Promise<boolean> {
 ### 関連リソース
 
 - [AT Protocol Specification](https://atproto.com/specs)
+- [AT Protocol Lexicon](https://atproto.com/specs/lexicon)
 - [OAuth 2.0 RFC](https://datatracker.ietf.org/doc/html/rfc6749)
 - [DPoP RFC](https://datatracker.ietf.org/doc/html/rfc9449)
 - [PKCE RFC](https://datatracker.ietf.org/doc/html/rfc7636)
@@ -1547,9 +2173,42 @@ async function verifyUserDID(expectedDID: string): Promise<boolean> {
 ---
 
 **最終更新**: 2026-01-13
-**バージョン**: 1.1.0
+**バージョン**: 1.2.3
 
 ## 変更履歴
+
+### v1.2.3 (2026-01-13)
+
+- ✅ セルフラベル（contentLabels）機能を追加
+- ✅ 成人向けコンテンツ、ヌード、ポルノ、暴力的画像のラベル設定をサポート
+- ✅ セルフラベル付き投稿の使用例を追加
+- ✅ Lexicon 定義に contentLabels フィールドを追加
+- ✅ workers-api と api 両方で contentLabels を保存するように実装
+
+### v1.2.2 (2026-01-13)
+
+- ✅ 画像添付時にテキストが空でも許容されることを明記
+- ✅ 画像の alt テキスト設定の重要性を追加（アクセシビリティ向上）
+- ✅ 画像のみの投稿例を追加
+- ✅ リクエストボディに embed フィールドの定義を追加
+- ✅ Lexicon 定義を更新（content と embed の関係を明確化）
+
+### v1.2.1 (2026-01-13)
+
+- ✅ `app.chronosky.media.uploadBlob` の実装を更新（一時保存方式に変更）
+- ✅ 画像の保存フローを明確化（Chronosky → 投稿関連付け → Bluesky PDS）
+- ✅ 画像付きスレッド投稿の実装例を追加
+- ✅ Mermaid 図を追加して画像ライフサイクルを可視化
+- ✅ レスポンス形式の説明を更新（画像参照 ID に関する情報）
+- ✅ エラーレスポンスと注意事項を実装に合わせて修正
+
+### v1.2.0 (2026-01-13)
+
+- ✅ 画像アップロード API (`app.chronosky.media.uploadBlob`) を追加
+- ✅ 画像付き投稿の実装例を追加
+- ✅ Lexicon 定義セクションを追加
+- ✅ 言語設定、返信制限、引用制限の説明を追加
+- ✅ AT Protocol 既存レキシコン (`app.bsky.*`) との互換性を明記
 
 ### v1.1.0 (2026-01-13)
 

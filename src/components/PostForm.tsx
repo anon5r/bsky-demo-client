@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChronoskyClient, type BlobRef } from '../lib/chronosky-xrpc-client';
+import { ChronoskyClient, type BlobRef, type ContentLabels } from '../lib/chronosky-xrpc-client';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 import imageCompression from 'browser-image-compression';
@@ -13,21 +13,61 @@ interface PostFormProps {
 interface PostDraft {
   text: string;
   images: File[];
+  labels: string[]; // Keep UI state as string array for checkboxes
+  languages: string[]; // New: languages state
 }
 
+const LABELS = [
+  { val: 'sexual', label: 'Sexual' },
+  { val: 'nudity', label: 'Nudity' },
+  { val: 'porn', label: 'Porn' },
+  { val: 'graphic-media', label: 'Graphic Media' },
+  { val: 'violence', label: 'Violence' },
+];
+
+const LANGUAGES = [
+  { code: 'ja', label: 'Japanese' },
+  { code: 'en', label: 'English' },
+  // Add more as needed
+];
+
 export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
-  const [posts, setPosts] = useState<PostDraft[]>([{ text: '', images: [] }]);
+  const [posts, setPosts] = useState<PostDraft[]>([{ text: '', images: [], labels: [], languages: ['ja'] }]);
   const [scheduledAt, setScheduledAt] = useState('');
+  const [threadgate, setThreadgate] = useState<string[]>([]);
+  const [disableQuotes, setDisableQuotes] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
   const [mode, setMode] = useState<'now' | 'schedule'>('now');
 
-  const addPost = () => setPosts([...posts, { text: '', images: [] }]);
+  const addPost = () => setPosts([...posts, { text: '', images: [], labels: [], languages: ['ja'] }]);
   const removePost = (index: number) => setPosts(posts.filter((_, i) => i !== index));
   
   const updateText = (index: number, text: string) => {
     const newPosts = [...posts];
     newPosts[index].text = text;
+    setPosts(newPosts);
+  };
+
+  const updateLabels = (index: number, labelVal: string, checked: boolean) => {
+    const newPosts = [...posts];
+    if (checked) {
+      newPosts[index].labels = [...newPosts[index].labels, labelVal];
+    } else {
+      newPosts[index].labels = newPosts[index].labels.filter(l => l !== labelVal);
+    }
+    setPosts(newPosts);
+  };
+
+  const updateLanguages = (index: number, langCode: string, checked: boolean) => {
+    const newPosts = [...posts];
+    if (checked) {
+      if (!newPosts[index].languages.includes(langCode)) {
+        newPosts[index].languages = [...newPosts[index].languages, langCode];
+      }
+    } else {
+      newPosts[index].languages = newPosts[index].languages.filter(l => l !== langCode);
+    }
     setPosts(newPosts);
   };
 
@@ -55,7 +95,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
 
   async function compressImage(file: File): Promise<Blob> {
     const options = {
-      maxSizeMB: 0.9, // Slightly under 1MB to be safe
+      maxSizeMB: 0.9, 
       maxWidthOrHeight: 2000,
       useWebWorker: true,
     };
@@ -75,36 +115,60 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
     try {
       if (mode === 'schedule') {
         // Chronosky Schedule
-        if (posts.length > 1) {
-            alert("Note: Only the first post will be scheduled. Thread scheduling is not yet supported.");
-        }
-        
-        const draft = posts[0];
         const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
         
-        // Handle images for schedule
-        const uploadedImages: { blob: BlobRef; alt?: string }[] = [];
+        const threadPosts: any[] = [];
         
-        if (draft.images.length > 0) {
-          for (const img of draft.images) {
-             const compressed = await compressImage(img);
-             const uploadRes = await client.uploadBlob(compressed);
-             uploadedImages.push({
-               blob: uploadRes.blob,
-               alt: "Image" // TODO: Add alt text support
-             });
+        for (const draft of posts) {
+          if (!draft.text.trim() && draft.images.length === 0) continue;
+
+          // Handle images for schedule
+          let embed: any = undefined;
+          if (draft.images.length > 0) {
+            const uploaded = [];
+            for (const img of draft.images) {
+              const compressed = await compressImage(img);
+              const uploadRes = await client.uploadBlob(compressed as Blob);
+              uploaded.push({
+                alt: "Image", 
+                image: uploadRes.blob,
+              });
+            }
+            embed = {
+              $type: 'app.bsky.embed.images',
+              images: uploaded
+            };
           }
+
+          const contentLabels: ContentLabels = {};
+          draft.labels.forEach(l => {
+            (contentLabels as any)[l] = true;
+          });
+
+          threadPosts.push({
+            content: draft.text,
+            embed: embed,
+            contentLabels: Object.keys(contentLabels).length > 0 ? contentLabels : undefined,
+            languages: draft.languages.length > 0 ? draft.languages : undefined,
+          });
+        }
+
+        if (threadPosts.length === 0) {
+            throw new Error("Cannot create empty post");
         }
 
         await client.createPost({
-          text: draft.text,
+          posts: threadPosts,
           scheduledAt: new Date(scheduledAt).toISOString(),
-          images: uploadedImages.length > 0 ? uploadedImages : undefined,
+          threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,
+          disableQuotePosts: disableQuotes
         });
         
         setStatus('success');
-        setPosts([{ text: '', images: [] }]);
+        setPosts([{ text: '', images: [], labels: [], languages: ['ja'] }]);
         setScheduledAt('');
+        setThreadgate([]);
+        setDisableQuotes(false);
         if (onPostCreated) onPostCreated();
 
       } else {
@@ -115,19 +179,15 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
         for (const draft of posts) {
           if (!draft.text.trim() && draft.images.length === 0) continue;
           
-          // Handle images for immediate post
           let embed: any = undefined;
           if (draft.images.length > 0) {
              const uploaded = [];
              for (const img of draft.images) {
                 const compressed = await compressImage(img);
-                // Convert Blob to Uint8Array for agent.uploadBlob if needed?
-                // Agent.uploadBlob takes Blob or Uint8Array.
-                // However, agent.uploadBlob returns { data: { blob: ... } }
                 const { data } = await agent.uploadBlob(compressed, { encoding: compressed.type });
                 uploaded.push({
                     image: data.blob,
-                    alt: "Image" // TODO: Add alt text support
+                    alt: "Image"
                 });
              }
              embed = {
@@ -136,12 +196,22 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
              };
           }
 
-          const res: any = await agent.post({
+          const record: any = {
             text: draft.text,
             embed,
             reply: root && parent ? { root, parent } : undefined,
-            createdAt: new Date().toISOString()
-          });
+            createdAt: new Date().toISOString(),
+            langs: draft.languages.length > 0 ? draft.languages : undefined,
+          };
+
+          if (draft.labels.length > 0) {
+            record.labels = {
+              $type: 'com.atproto.label.defs#selfLabels',
+              values: draft.labels.map(val => ({ val }))
+            };
+          }
+
+          const res: any = await agent.post(record);
           
           if (!root) {
             root = { uri: res.uri, cid: res.cid };
@@ -150,7 +220,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
         }
         
         setStatus('success');
-        setPosts([{ text: '', images: [] }]);
+        setPosts([{ text: '', images: [], labels: [], languages: ['ja'] }]);
         if (onPostCreated) onPostCreated();
       }
     } catch (error: any) {
@@ -201,7 +271,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
                 onChange={(e) => updateText(index, e.target.value)}
                 placeholder={index === 0 ? "What's happening?" : "Add another post..."}
                 rows={3}
-                required={index === 0 && draft.images.length === 0} // Text required if no images (for first post)
+                required={index === 0 && draft.images.length === 0} 
                 style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ddd', marginBottom: '10px' }}
               />
               
@@ -216,7 +286,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
               </div>
 
               {draft.images.length > 0 && (
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
                       {draft.images.map((img, imgIdx) => (
                           <div key={imgIdx} style={{ position: 'relative', width: '100px', height: '100px' }}>
                               <img 
@@ -243,6 +313,40 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
                   </div>
               )}
 
+              {/* Labels (Content Warning) */}
+              <div style={{ borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: '#666' }}>Content Warnings:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  {LABELS.map(label => (
+                    <label key={label.val} style={{ fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={draft.labels.includes(label.val)}
+                        onChange={(e) => updateLabels(index, label.val, e.target.checked)}
+                      />
+                      {label.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Languages */}
+              <div style={{ paddingTop: '10px' }}>
+                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: '#666' }}>Languages:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  {LANGUAGES.map(lang => (
+                    <label key={lang.code} style={{ fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={draft.languages.includes(lang.code)}
+                        onChange={(e) => updateLanguages(index, lang.code, e.target.checked)}
+                      />
+                      {lang.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {posts.length > 1 && (
                 <button 
                   type="button" 
@@ -265,17 +369,55 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           >
             + Add to Thread
           </button>
-          
-          {mode === 'schedule' && (
+        </div>
+
+        {/* Schedule Options */}
+        {mode === 'schedule' && (
+          <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em', fontWeight: 'bold' }}>Schedule Date:</label>
               <input
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                required={mode === 'schedule'}
-                style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc' }}
+                required
+                style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc', width: '100%', boxSizing: 'border-box' }}
               />
-          )}
-        </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.9em', fontWeight: 'bold', marginBottom: '5px' }}>Reply Control (Threadgate):</div>
+              <div style={{ display: 'flex', gap: '15px' }}>
+                {['mention', 'follower', 'following'].map(rule => (
+                  <label key={rule} style={{ fontSize: '0.9em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <input 
+                      type="checkbox" 
+                      value={rule}
+                      checked={threadgate.includes(rule)}
+                      onChange={(e) => {
+                        if (e.target.checked) setThreadgate([...threadgate, rule]);
+                        else setThreadgate(threadgate.filter(r => r !== rule));
+                      }}
+                    />
+                    {rule.charAt(0).toUpperCase() + rule.slice(1)}s
+                  </label>
+                ))}
+              </div>
+              {threadgate.length === 0 && <small style={{ color: '#888' }}>Everyone can reply</small>}
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.9em', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
+                <input 
+                  type="checkbox" 
+                  checked={disableQuotes}
+                  onChange={(e) => setDisableQuotes(e.target.checked)}
+                />
+                Disable Quote Posts
+              </label>
+            </div>
+          </div>
+        )}
         
         <button 
           type="submit" 

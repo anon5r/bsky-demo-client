@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChronoskyClient, type ScheduleItem } from '../lib/chronosky-xrpc-client';
+import { ChronoskyClient, type ScheduledPost } from '../lib/chronosky-xrpc-client';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 
 interface ScheduleListProps {
@@ -7,7 +7,7 @@ interface ScheduleListProps {
 }
 
 export function ScheduleList({ session }: ScheduleListProps) {
-  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [schedules, setSchedules] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
 
@@ -39,11 +39,11 @@ export function ScheduleList({ session }: ScheduleListProps) {
     loadSchedules();
   }, [session]);
 
-  async function deleteSchedule(uri: string) {
+  async function deleteSchedule(id: string) {
     if (!confirm("Are you sure you want to delete this scheduled post?")) return;
     try {
-      await client.deletePost({ uri });
-      setSchedules(schedules.filter(s => s.uri !== uri));
+      await client.deletePost({ id });
+      setSchedules(schedules.filter(s => s.id !== id));
     } catch (error: any) {
       console.error("Failed to delete schedule", error);
       alert("Failed to delete schedule: " + error.message);
@@ -65,7 +65,7 @@ export function ScheduleList({ session }: ScheduleListProps) {
 
       <ul style={{ listStyle: 'none', padding: 0, textAlign: 'left' }}>
         {schedules?.map((schedule) => (
-          <li key={schedule.uri} style={{ borderBottom: '1px solid #eee', padding: '15px 0' }}>
+          <li key={schedule.id} style={{ borderBottom: '1px solid #eee', padding: '15px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
               <span style={{ fontWeight: 'bold', color: '#666' }}>
                 Scheduled for: {new Date(schedule.scheduledAt).toLocaleString()}
@@ -74,17 +74,17 @@ export function ScheduleList({ session }: ScheduleListProps) {
                 padding: '2px 6px', 
                 borderRadius: '4px', 
                 fontSize: '0.8em',
-                background: schedule.status === 'pending' ? '#e3f2fd' : '#f5f5f5',
-                color: schedule.status === 'pending' ? '#1976d2' : '#666'
+                background: schedule.status === 'PENDING' ? '#e3f2fd' : '#f5f5f5',
+                color: schedule.status === 'PENDING' ? '#1976d2' : '#666'
               }}>
                 {schedule.status}
               </span>
             </div>
             
-            <p style={{ margin: '5px 0 10px 0', whiteSpace: 'pre-wrap' }}>{schedule.text}</p>
+            <p style={{ margin: '5px 0 10px 0', whiteSpace: 'pre-wrap' }}>{schedule.content}</p>
             
             <button 
-              onClick={() => deleteSchedule(schedule.uri)}
+              onClick={() => deleteSchedule(schedule.id)}
               style={{ background: '#fee', border: '1px solid #fcc', color: '#d00', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
             >
               Cancel Schedule

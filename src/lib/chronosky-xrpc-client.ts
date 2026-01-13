@@ -11,68 +11,89 @@ export interface UploadBlobResponse {
   blob: BlobRef;
 }
 
-// Type definitions based on the guide
+export interface ContentLabels {
+  sexual?: boolean;
+  nudity?: boolean;
+  porn?: boolean;
+  'graphic-media'?: boolean;
+  violence?: boolean;
+}
+
+export interface ThreadPostItem {
+  content: string;
+  languages?: string[];
+  facets?: any[];
+  contentLabels?: ContentLabels; // Changed from labels to contentLabels with boolean flags
+  embed?: {
+    $type: string;
+    images?: Array<{
+      alt: string;
+      image: BlobRef;
+    }>;
+    [key: string]: any;
+  };
+}
+
+// Type definitions based on the NEW guide
 export interface CreateScheduleRequest {
-  text: string;
+  text?: string; // Backward compatibility, posts is preferred
+  posts?: ThreadPostItem[];
   scheduledAt: string;
-  replyTo?: {
-    uri: string;
-    cid: string;
-  };
-  images?: {
-    blob: BlobRef;
-    alt?: string;
-  }[];
-  langs?: string[];
-  labels?: {
-    values: { val: string }[];
-  };
+  parentPostRecordKey?: string;
+  threadgateRules?: Array<'mention' | 'follower' | 'following'>;
+  disableQuotePosts?: boolean;
 }
 
 export interface CreateScheduleResponse {
-  uri: string;
-  cid: string;
+  success: boolean;
+  postIds: string[];
   scheduledAt: string;
+  status: string;
+  postCount: number;
 }
 
 export interface ListSchedulesRequest {
+  status?: 'pending' | 'executing' | 'completed' | 'failed' | 'cancelled';
+  page?: number;
   limit?: number;
-  cursor?: string;
-  status?: 'pending' | 'posted' | 'failed' | 'cancelled';
 }
 
-export interface ScheduleItem {
-  uri: string;
-  cid: string;
-  text: string;
+export interface ScheduledPost {
+  id: string;
+  content: string;
   scheduledAt: string;
-  status: string;
+  status: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   createdAt: string;
+  updatedAt: string;
+  parentPostId?: string;
+  threadOrder?: number;
 }
 
 export interface ListSchedulesResponse {
-  posts: ScheduleItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  cursor?: string;
+  posts: ScheduledPost[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface UpdateScheduleRequest {
-  uri: string;
-  text?: string;
+  id: string;
+  content?: string;
   scheduledAt?: string;
+  languages?: string[];
+  facets?: any[];
+  embed?: any;
 }
 
 export interface UpdateScheduleResponse {
-  uri: string;
-  cid: string;
-  scheduledAt: string;
+  post: ScheduledPost;
 }
 
 export interface DeleteScheduleRequest {
-  uri: string;
+  id: string;
 }
 
 export interface DeleteScheduleResponse {
@@ -106,15 +127,15 @@ export class ChronoskyClient {
       url.search = params.toString();
     }
 
-    const defaultHeaders = {
-      'Content-Type': 'application/json',
-    };
+    const defaultHeaders: Record<string, string> = {};
+    if (!(body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)) {
+        defaultHeaders['Content-Type'] = 'application/json';
+    }
 
     const finalHeaders = { ...defaultHeaders, ...headers };
-    
-    // If body is Blob/Buffer/Uint8Array, don't stringify (and Content-Type might be set by caller)
-    const isBinary = body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array;
-    const finalBody = isBinary ? body : (body ? JSON.stringify(body) : undefined);
+    const finalBody = (body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array) 
+        ? body 
+        : (body ? JSON.stringify(body) : undefined);
 
     const response = await this.fetchHandler(url.toString(), {
       method: method.toUpperCase(),
@@ -149,9 +170,9 @@ export class ChronoskyClient {
 
   async listPosts(input?: ListSchedulesRequest): Promise<ListSchedulesResponse> {
     const params = new URLSearchParams();
-    if (input?.limit) params.append('limit', input.limit.toString());
-    if (input?.cursor) params.append('cursor', input.cursor);
     if (input?.status) params.append('status', input.status);
+    if (input?.page) params.append('page', input.page.toString());
+    if (input?.limit) params.append('limit', input.limit.toString());
 
     return this.request('GET', 'app.chronosky.schedule.listPosts', undefined, params);
   }
