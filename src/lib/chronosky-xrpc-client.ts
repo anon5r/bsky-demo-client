@@ -1,5 +1,16 @@
 const CHRONOSKY_API_URL = import.meta.env.VITE_CHRONOSKY_API_URL || 'https://api.chronosky.app';
 
+export interface BlobRef {
+  $type: 'blob';
+  ref: { $link: string };
+  mimeType: string;
+  size: number;
+}
+
+export interface UploadBlobResponse {
+  blob: BlobRef;
+}
+
 // Type definitions based on the guide
 export interface CreateScheduleRequest {
   text: string;
@@ -9,7 +20,7 @@ export interface CreateScheduleRequest {
     cid: string;
   };
   images?: {
-    blob: Blob;
+    blob: BlobRef;
     alt?: string;
   }[];
   langs?: string[];
@@ -89,18 +100,26 @@ export class ChronoskyClient {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(method: string, endpoint: string, body?: any, params?: URLSearchParams): Promise<T> {
+  private async request<T>(method: string, endpoint: string, body?: any, params?: URLSearchParams, headers: Record<string, string> = {}): Promise<T> {
     const url = new URL(`${this.baseUrl}/xrpc/${endpoint}`);
     if (params) {
       url.search = params.toString();
     }
 
+    const defaultHeaders = {
+      'Content-Type': 'application/json',
+    };
+
+    const finalHeaders = { ...defaultHeaders, ...headers };
+    
+    // If body is Blob/Buffer/Uint8Array, don't stringify (and Content-Type might be set by caller)
+    const isBinary = body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array;
+    const finalBody = isBinary ? body : (body ? JSON.stringify(body) : undefined);
+
     const response = await this.fetchHandler(url.toString(), {
       method: method.toUpperCase(),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
+      headers: finalHeaders,
+      body: finalBody as any,
     });
 
     if (!response.ok) {
@@ -112,6 +131,16 @@ export class ChronoskyClient {
     }
 
     return response.json();
+  }
+
+  async uploadBlob(blob: Blob): Promise<UploadBlobResponse> {
+    return this.request(
+      'POST',
+      'app.chronosky.media.uploadBlob',
+      blob,
+      undefined,
+      { 'Content-Type': blob.type }
+    );
   }
 
   async createPost(input: CreateScheduleRequest): Promise<CreateScheduleResponse> {
