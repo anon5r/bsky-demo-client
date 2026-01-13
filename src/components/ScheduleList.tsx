@@ -18,7 +18,7 @@ export function ScheduleList({ session }: ScheduleListProps) {
     setErrorMsg('');
     try {
       const response = await client.listPosts({ limit: 50, status: 'pending' });
-      setSchedules(response.schedules || []);
+      setSchedules(response.posts || []);
     } catch (error: any) {
       console.error("Failed to load schedules", error);
       if (error.error === 'USER_NOT_REGISTERED') {

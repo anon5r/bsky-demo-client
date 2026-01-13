@@ -40,8 +40,12 @@ export interface ScheduleItem {
 }
 
 export interface ListSchedulesResponse {
+  posts: ScheduleItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
   cursor?: string;
-  schedules: ScheduleItem[];
 }
 
 export interface UpdateScheduleRequest {
