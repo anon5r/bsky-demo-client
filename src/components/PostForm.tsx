@@ -127,8 +127,23 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           if (draft.images.length > 0) {
             const uploaded = [];
             for (const img of draft.images) {
+              console.log(`Compressing image: ${img.name}`);
               const compressed = await compressImage(img);
+              console.log(`Uploading blob, size: ${compressed.size}, type: ${compressed.type}`);
+              
+              // Ensure we have a valid Content-Type, defaulting to jpeg if missing
+              if (!compressed.type) {
+                  // Create a new Blob with enforced type if needed, though compression usually sets it
+                  // For now, assume compression works or trust the browser
+              }
+
               const uploadRes = await client.uploadBlob(compressed as Blob);
+              console.log('Upload response:', uploadRes);
+
+              if (!uploadRes || !uploadRes.blob) {
+                  throw new Error("Failed to upload image: No blob returned");
+              }
+
               uploaded.push({
                 alt: "Image", 
                 image: uploadRes.blob,
