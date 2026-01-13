@@ -18,7 +18,7 @@ export function ScheduleList({ session }: ScheduleListProps) {
     setErrorMsg('');
     try {
       const response = await client.listPosts({ limit: 50, status: 'pending' });
-      setSchedules(response.schedules);
+      setSchedules(response.schedules || []);
     } catch (error: any) {
       console.error("Failed to load schedules", error);
       if (error.error === 'USER_NOT_REGISTERED') {
@@ -50,7 +50,7 @@ export function ScheduleList({ session }: ScheduleListProps) {
     }
   }
 
-  if (loading && schedules.length === 0) return <div>Loading schedules...</div>;
+  if (loading && (!schedules || schedules.length === 0)) return <div>Loading schedules...</div>;
 
   return (
     <div className="card">
@@ -61,10 +61,10 @@ export function ScheduleList({ session }: ScheduleListProps) {
       
       {errorMsg && <div style={{ color: 'red', marginBottom: '10px', padding: '10px', border: '1px solid red', borderRadius: '4px' }}>{errorMsg}</div>}
       
-      {schedules.length === 0 && !loading && !errorMsg && <p>No pending schedules.</p>}
+      {(!schedules || schedules.length === 0) && !loading && !errorMsg && <p>No pending schedules.</p>}
 
       <ul style={{ listStyle: 'none', padding: 0, textAlign: 'left' }}>
-        {schedules.map((schedule) => (
+        {schedules?.map((schedule) => (
           <li key={schedule.uri} style={{ borderBottom: '1px solid #eee', padding: '15px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
               <span style={{ fontWeight: 'bold', color: '#666' }}>
