@@ -510,32 +510,58 @@ async function callChronoskyAPI(
 
 予約投稿を作成します。
 
+**エンドポイント:** `POST /xrpc/app.chronosky.schedule.createPost`
+
+**リクエストボディ:**
+
 ```typescript
 interface CreateScheduleRequest {
-  text: string;                    // 投稿本文
-  scheduledAt: string;             // ISO 8601 形式の日時
-  replyTo?: {                      // リプライ先（オプション）
-    uri: string;
-    cid: string;
-  };
-  images?: Array<{                 // 画像（オプション）
-    blob: Blob;
-    alt?: string;
+  // 以下のいずれかが必須（両方指定された場合は posts が優先）
+  text?: string;                           // シンプルな単一投稿用
+  posts?: Array<{                          // スレッド投稿用（高度な使用方法）
+    content: string;                       // 投稿本文
+    facets?: Array<{                       // リンクやメンションの装飾（オプション）
+      index: { byteStart: number; byteEnd: number };
+      features: Array<{
+        $type: string;
+        uri?: string;      // リンクの場合
+        did?: string;      // メンションの場合
+      }>;
+    }>;
   }>;
-  langs?: string[];                // 言語コード（オプション）
-  labels?: {                       // ラベル（オプション）
-    values: Array<{ val: string }>;
-  };
-}
 
-interface CreateScheduleResponse {
-  uri: string;                     // スケジュールの URI
-  cid: string;                     // スケジュールの CID
-  scheduledAt: string;             // 予約日時
+  // 予約日時（必須）
+  scheduledAt: string;                     // ISO 8601 形式（例: "2026-01-15T10:00:00Z"）
+
+  // オプション設定
+  parentPostRecordKey?: string;            // リプライ先の rkey（オプション）
+  threadgateRules?: Array<'mention' | 'follower' | 'following'>; // スレッド制限（オプション）
+  disableQuotePosts?: boolean;             // 引用投稿を無効化（オプション、デフォルト: false）
 }
 ```
 
-**使用例:**
+**レスポンス:**
+
+```typescript
+interface CreateScheduleResponse {
+  success: boolean;                        // 作成成功フラグ
+  postIds: string[];                       // 作成された投稿 ID のリスト
+  scheduledAt: string;                     // 予約日時（ISO 8601形式）
+}
+```
+
+**バリデーションルール:**
+
+1. **最小予約時間:** 現在時刻から最低5分以上先に設定する必要があります
+2. **プラン制限:**
+   - **文字数制限:** プランに応じた最大文字数（デフォルト: 300文字）
+   - **予約可能日数:** プランに応じた最大予約日数（デフォルト: 7日）
+   - **予約間隔:** 前回の予約投稿からの最小間隔（デフォルト: 1分）
+   - **同時予約数:** 同時に予約できる投稿の上限（デフォルト: 50件）
+   - **スレッド投稿:** プランによっては複数投稿が許可されない場合があります
+   - **スレッド投稿数:** プランに応じたスレッド内投稿数の上限（デフォルト: 25件）
+
+**使用例（シンプル）:**
 
 ```typescript
 const response = await callChronoskyAPI(
@@ -546,35 +572,144 @@ const response = await callChronoskyAPI(
   {
     text: 'Hello from third-party client!',
     scheduledAt: '2026-01-15T10:00:00Z',
-    langs: ['ja', 'en'],
   }
 );
 
-const schedule = await response.json();
-console.log(`Created schedule: ${schedule.uri}`);
+const result = await response.json();
+if (result.success) {
+  console.log(`Created ${result.postIds.length} scheduled post(s)`);
+}
+```
+
+**使用例（スレッド投稿）:**
+
+```typescript
+const response = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.createPost',
+  accessToken,
+  dpopKey,
+  {
+    posts: [
+      { content: 'First post in thread' },
+      { content: 'Second post in thread' },
+      { content: 'Third post in thread' },
+    ],
+    scheduledAt: '2026-01-15T10:00:00Z',
+    threadgateRules: ['follower'],  // フォロワーのみ返信可能
+  }
+);
 ```
 
 #### `app.chronosky.schedule.listPosts`
 
 ユーザーの予約投稿一覧を取得します。
 
-```typescript
-interface ListSchedulesRequest {
-  limit?: number;                  // 取得件数（デフォルト: 50）
-  cursor?: string;                 // ページネーションカーソル
-  status?: 'pending' | 'posted' | 'failed' | 'cancelled';
-}
+**エンドポイント:** `GET /xrpc/app.chronosky.schedule.listPosts`
 
-interface ListSchedulesResponse {
-  cursor?: string;
-  schedules: Array<{
-    uri: string;
-    cid: string;
-    text: string;
-    scheduledAt: string;
-    status: string;
-    createdAt: string;
+**クエリパラメータ:**
+
+```typescript
+interface ListPostsQuery {
+  status?: 'pending' | 'executing' | 'completed' | 'failed' | 'cancelled'; // 投稿ステータスでフィルタ（大文字小文字を問わない）
+  page?: number;                   // ページ番号（デフォルト: 1）
+  limit?: number;                  // ページあたりの取得件数（デフォルト: 20）
+}
+```
+
+**レスポンス:**
+
+```typescript
+interface ListPostsResponse {
+  posts: Array<{
+    id: string;                    // 投稿 ID
+    content: string;               // 投稿本文
+    scheduledAt: string;           // 予約日時（ISO 8601形式）
+    status: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; // 投稿ステータス
+    createdAt: string;             // 作成日時（ISO 8601形式）
+    updatedAt: string;             // 更新日時（ISO 8601形式）
+    parentPostId?: string;         // 親投稿 ID（スレッドの場合）
+    threadOrder?: number;          // スレッド内の順序
   }>;
+  pagination: {
+    page: number;                  // 現在のページ番号
+    limit: number;                 // ページあたりの件数
+    total: number;                 // 総件数
+    totalPages: number;            // 総ページ数
+  };
+}
+```
+
+**投稿ステータス:**
+
+- `PENDING` - 予約済み（実行待ち）
+- `EXECUTING` - 実行中
+- `COMPLETED` - 投稿完了
+- `FAILED` - 投稿失敗
+- `CANCELLED` - キャンセル済み
+
+**使用例:**
+
+```typescript
+// PENDING 状態の投稿を取得
+const response = await callChronoskyAPI(
+  'GET',
+  'app.chronosky.schedule.listPosts?status=pending&page=1&limit=20',
+  accessToken,
+  dpopKey
+);
+
+const data = await response.json();
+console.log(`Total: ${data.pagination.total} posts`);
+data.posts.forEach(post => {
+  console.log(`${post.scheduledAt}: ${post.content}`);
+});
+```
+
+**大文字小文字の扱い:**
+
+status パラメータは大文字小文字を問いません。`pending`、`PENDING`、`Pending` のいずれも受け付けます。
+
+```typescript
+// これらはすべて同じ結果を返します
+'?status=pending'
+'?status=PENDING'
+'?status=Pending'
+```
+
+#### `app.chronosky.schedule.getPost`
+
+特定の予約投稿の詳細を取得します。
+
+**エンドポイント:** `GET /xrpc/app.chronosky.schedule.getPost`
+
+**クエリパラメータ:**
+
+```typescript
+interface GetPostQuery {
+  id: string;                      // 取得する投稿 ID
+}
+```
+
+**レスポンス:**
+
+```typescript
+interface GetPostResponse {
+  post: {
+    id: string;                    // 投稿 ID
+    content: string;               // 投稿本文
+    scheduledAt: string;           // 予約日時（ISO 8601形式）
+    status: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+    createdAt: string;             // 作成日時
+    updatedAt: string;             // 更新日時
+    parentPostId?: string;         // 親投稿 ID（スレッドの場合）
+    threadOrder?: number;          // スレッド内の順序
+    languages?: string[];          // 言語設定
+    facets?: Array<{...}>;         // リンクやメンションの装飾
+    embed?: {...};                 // 埋め込みコンテンツ
+    threadgateRules?: string[];    // スレッド制限ルール
+    disableQuotePosts?: boolean;   // 引用投稿無効化
+  };
 }
 ```
 
@@ -583,64 +718,126 @@ interface ListSchedulesResponse {
 ```typescript
 const response = await callChronoskyAPI(
   'GET',
-  'app.chronosky.schedule.listPosts?limit=20&status=pending',
+  `app.chronosky.schedule.getPost?id=${postId}`,
   accessToken,
   dpopKey
 );
 
-const { schedules, cursor } = await response.json();
-schedules.forEach(schedule => {
-  console.log(`${schedule.scheduledAt}: ${schedule.text}`);
-});
+const { post } = await response.json();
+console.log(`Post: ${post.content}`);
+console.log(`Scheduled for: ${post.scheduledAt}`);
 ```
 
 #### `app.chronosky.schedule.updatePost`
 
-予約投稿を更新します。
+予約投稿を更新します。**PENDING 状態の投稿のみ更新可能です。**
+
+**エンドポイント:** `POST /xrpc/app.chronosky.schedule.updatePost`
+
+**リクエストボディ:**
 
 ```typescript
-interface UpdateScheduleRequest {
-  uri: string;                     // 更新するスケジュールの URI
-  text?: string;                   // 新しい投稿本文
-  scheduledAt?: string;            // 新しい予約日時
-}
-
-interface UpdateScheduleResponse {
-  uri: string;
-  cid: string;
-  scheduledAt: string;
+interface UpdatePostRequest {
+  id: string;                      // 更新する投稿 ID（必須）
+  content?: string;                // 新しい投稿本文
+  scheduledAt?: string;            // 新しい予約日時（ISO 8601形式）
+  languages?: string[];            // 言語設定（例: ["ja", "en"]）
+  facets?: Array<{                 // リンクやメンションの装飾
+    index: { byteStart: number; byteEnd: number };
+    features: Array<{
+      $type: string;
+      uri?: string;
+      did?: string;
+    }>;
+  }>;
+  embed?: {                        // 埋め込みコンテンツ
+    $type: string;
+    // ... 埋め込みタイプに応じたフィールド
+  };
 }
 ```
+
+**レスポンス:**
+
+```typescript
+interface UpdatePostResponse {
+  post: {
+    id: string;
+    content: string;
+    scheduledAt: string;
+    status: string;
+    updatedAt: string;
+  };
+}
+```
+
+**制約事項:**
+
+- ✅ **PENDING** 状態の投稿のみ更新可能
+- ❌ **EXECUTING**、**COMPLETED**、**FAILED**、**CANCELLED** 状態の投稿は更新不可
+- ✅ 少なくとも1つのフィールドを指定する必要があります
 
 **使用例:**
 
 ```typescript
+// 投稿本文と予約日時を更新
 const response = await callChronoskyAPI(
   'POST',
   'app.chronosky.schedule.updatePost',
   accessToken,
   dpopKey,
   {
-    uri: 'at://did:plc:xxx/app.chronosky.schedule/xxx',
-    text: 'Updated post content',
+    id: 'post-id-here',
+    content: 'Updated post content',
     scheduledAt: '2026-01-16T10:00:00Z',
   }
 );
+
+const { post } = await response.json();
+console.log(`Updated: ${post.id}`);
 ```
+
+**エラーレスポンス例:**
+
+```json
+{
+  "error": "INVALID_REQUEST",
+  "message": "Post not found or cannot be updated"
+}
+```
+
+このエラーは以下の場合に発生します：
+- 投稿が存在しない
+- 投稿が他のユーザーに属している
+- 投稿が PENDING 状態ではない（既に実行済み、完了済み、失敗、キャンセル済み）
 
 #### `app.chronosky.schedule.deletePost`
 
-予約投稿を削除します。
+予約投稿を削除します。**PENDING 状態の投稿のみ削除可能です。**
+
+**エンドポイント:** `POST /xrpc/app.chronosky.schedule.deletePost`
+
+**リクエストボディ:**
 
 ```typescript
-interface DeleteScheduleRequest {
-  uri: string;                     // 削除するスケジュールの URI
-}
-
-interface DeleteScheduleResponse {
-  success: boolean;
+interface DeletePostRequest {
+  id: string;                      // 削除する投稿 ID（必須）
 }
 ```
+
+**レスポンス:**
+
+```typescript
+interface DeletePostResponse {
+  success: boolean;                // 削除成功フラグ
+}
+```
+
+**制約事項:**
+
+- ✅ **PENDING** 状態の投稿のみ削除可能
+- ❌ **EXECUTING**、**COMPLETED**、**FAILED**、**CANCELLED** 状態の投稿は削除不可
+- ✅ 自分が作成した投稿のみ削除可能（他のユーザーの投稿は削除不可）
 
 **使用例:**
 
@@ -651,9 +848,46 @@ const response = await callChronoskyAPI(
   accessToken,
   dpopKey,
   {
-    uri: 'at://did:plc:xxx/app.chronosky.schedule/xxx',
+    id: 'post-id-here',
   }
 );
+
+const result = await response.json();
+if (result.success) {
+  console.log('Post deleted successfully');
+}
+```
+
+**エラーレスポンス例:**
+
+```json
+{
+  "error": "INVALID_REQUEST",
+  "message": "Post not found or cannot be deleted"
+}
+```
+
+このエラーは以下の場合に発生します：
+- 投稿が存在しない
+- 投稿が他のユーザーに属している
+- 投稿が PENDING 状態ではない（既に実行済み、完了済み、失敗、キャンセル済み）
+
+**スレッド投稿の削除:**
+
+スレッド投稿（複数投稿）の場合、各投稿は個別に削除する必要があります。親投稿を削除しても、子投稿は自動的には削除されません。
+
+```typescript
+// スレッド内の各投稿を個別に削除
+const threadPostIds = ['post-1', 'post-2', 'post-3'];
+for (const postId of threadPostIds) {
+  await callChronoskyAPI(
+    'POST',
+    'app.chronosky.schedule.deletePost',
+    accessToken,
+    dpopKey,
+    { id: postId }
+  );
+}
 ```
 
 ## 実装サンプル
@@ -823,6 +1057,38 @@ console.log(`Created: ${schedule.uri}`);
 
 ## エラーハンドリング
 
+### CORS エラーのトラブルシューティング
+
+サードパーティクライアントから XRPC API を呼び出す際、CORS エラーが発生しないように設計されています。
+
+**XRPC エンドポイント (`/xrpc/*`) の CORS 設定:**
+
+- ✅ `Access-Control-Allow-Origin: *` - すべてのオリジンを許可
+- ✅ `Access-Control-Allow-Headers` - `Authorization`, `DPoP` ヘッダーを許可
+- ✅ `Access-Control-Expose-Headers` - `DPoP-Nonce` ヘッダーを公開
+- ✅ `Access-Control-Allow-Credentials: false` - Cookie 不要
+
+**CORS エラーが発生する場合の確認事項:**
+
+1. **エンドポイント URL の確認**
+   - ✅ 正しい: `https://api.chronosky.app/xrpc/app.chronosky.schedule.listPosts`
+   - ❌ 間違い: `https://api.chronosky.app/api/posts` (XRPC 以外のエンドポイント)
+   
+2. **必須ヘッダーの確認**
+   ```javascript
+   headers: {
+     'Content-Type': 'application/json',
+     'Authorization': `DPoP ${accessToken}`,  // 必須
+     'DPoP': dpopProof                        // 必須
+   }
+   ```
+
+3. **HTTPS の使用**
+   - 本番環境では必ず HTTPS を使用
+   - ローカル開発時は HTTP でも可
+
+**注意:** `/api/*` エンドポイントは Chronosky フロントエンド専用のため、サードパーティクライアントは使用できません。必ず `/xrpc/*` エンドポイントを使用してください。
+
 ### エラーレスポンス形式
 
 ```typescript
@@ -834,6 +1100,8 @@ interface ErrorResponse {
 
 ### 一般的なエラーコード
 
+#### 認証・認可エラー (HTTP 401 / 403)
+
 | エラーコード | HTTP Status | 説明 | 対処方法 |
 |------------|-------------|------|---------|
 | `AUTHENTICATION_REQUIRED` | 401 | 認証が必要です | Authorization ヘッダーを確認 |
@@ -844,9 +1112,56 @@ interface ErrorResponse {
 | `USER_NOT_ACTIVE` | 403 | ユーザーアカウントがアクティブではありません | ユーザーステータスを確認 |
 | `SERVICE_ACCOUNT_BLOCKED` | 403 | サービスアカウントがブロックされています | ブロック状態を解除 |
 | `TOKEN_VERIFICATION_FAILED` | 500 | Bluesky でのトークン検証に失敗しました | 後でリトライ |
-| `RATE_LIMIT_EXCEEDED` | 429 | レート制限を超過しました | 待機してリトライ |
+
+#### バリデーションエラー (HTTP 400)
+
+| エラーコード | HTTP Status | 説明 | 対処方法 |
+|------------|-------------|------|---------|
 | `INVALID_REQUEST` | 400 | リクエストパラメータが不正です | パラメータを確認 |
-| `SCHEDULE_NOT_FOUND` | 404 | 指定されたスケジュールが見つかりません | URI を確認 |
+| `INVALID_SCHEDULE_TIME` | 400 | 予約日時が過去です | 未来の日時を指定 |
+| `SCHEDULE_TOO_SOON` | 400 | 予約日時が近すぎます（最低5分必要） | 5分以上先の日時を指定 |
+
+#### プラン制限エラー (HTTP 403 / 429)
+
+| エラーコード | HTTP Status | 説明 | 対処方法 |
+|------------|-------------|------|---------|
+| `POST_LENGTH_EXCEEDED` | 403 | 投稿が文字数制限を超過しています | 文字数を減らすか、プランをアップグレード |
+| `SCHEDULE_DAYS_EXCEEDED` | 403 | 予約可能日数を超過しています | 予約日時を早めるか、プランをアップグレード |
+| `SCHEDULE_INTERVAL_VIOLATED` | 403 | 予約間隔が短すぎます | 最小間隔を空けるか、プランをアップグレード |
+| `PENDING_POSTS_LIMIT_EXCEEDED` | 429 | 同時予約数の上限に達しています | 既存の予約を削除するか、プランをアップグレード |
+| `THREAD_NOT_SUPPORTED` | 403 | プランがスレッド投稿に対応していません | 単一投稿にするか、プランをアップグレード |
+| `THREAD_LIMIT_EXCEEDED` | 403 | スレッド投稿数が上限を超過しています | 投稿数を減らすか、プランをアップグレード |
+
+**プラン制限エラーのレスポンス形式:**
+
+```typescript
+interface PlanLimitErrorResponse {
+  error: string;                   // エラーコード
+  message: string;                 // エラーメッセージ
+  limit: number;                   // プランの制限値
+  current: number;                 // 現在の値
+  upgradeRequired: boolean;        // アップグレード推奨フラグ（常に true）
+}
+```
+
+**例:**
+
+```json
+{
+  "error": "POST_LENGTH_EXCEEDED",
+  "message": "Plan allows maximum 300 characters per post. Post #1 has 350 characters.",
+  "limit": 300,
+  "current": 350,
+  "upgradeRequired": true
+}
+```
+
+#### その他のエラー (HTTP 404 / 429 / 500)
+
+| エラーコード | HTTP Status | 説明 | 対処方法 |
+|------------|-------------|------|---------|
+| `SCHEDULE_NOT_FOUND` | 404 | 指定されたスケジュールが見つかりません | ID を確認 |
+| `RATE_LIMIT_EXCEEDED` | 429 | API レート制限を超過しました | 待機してリトライ |
 | `INTERNAL_SERVER_ERROR` | 500 | サーバー内部エラー | 後でリトライ |
 
 ### USER_NOT_REGISTERED エラーの詳細
@@ -911,23 +1226,153 @@ async function handleAPICall() {
     const result = await client.createSchedule('Hello', '2026-01-15T10:00:00Z');
     return result;
   } catch (error) {
-    if (error.message.includes('InvalidToken')) {
-      // トークンをリフレッシュ
+    const errorData = await error.response?.json();
+
+    // トークンエラー: リフレッシュしてリトライ
+    if (error.status === 401 && errorData?.error === 'INVALID_TOKEN') {
       await client.refreshToken();
-      // リトライ
       return await client.createSchedule('Hello', '2026-01-15T10:00:00Z');
-    } else if (error.message.includes('RateLimitExceeded')) {
-      // レート制限: 待機してリトライ
+    }
+
+    // レート制限: 待機してリトライ
+    if (error.status === 429) {
       await new Promise(resolve => setTimeout(resolve, 60000));
       return await client.createSchedule('Hello', '2026-01-15T10:00:00Z');
-    } else {
-      // その他のエラー
-      console.error('API Error:', error);
-      throw error;
     }
+
+    // プラン制限エラー: ユーザーに通知
+    if (errorData?.upgradeRequired) {
+      showUpgradePrompt({
+        error: errorData.error,
+        message: errorData.message,
+        currentValue: errorData.current,
+        limit: errorData.limit,
+      });
+      return null;
+    }
+
+    // バリデーションエラー: ユーザーに修正を促す
+    if (error.status === 400) {
+      showValidationError(errorData.message);
+      return null;
+    }
+
+    // その他のエラー
+    console.error('API Error:', error);
+    throw error;
   }
 }
+
+// プラン制限エラーのハンドリング例
+function showUpgradePrompt(errorInfo: {
+  error: string;
+  message: string;
+  currentValue: number;
+  limit: number;
+}) {
+  const errorMessages = {
+    POST_LENGTH_EXCEEDED: `投稿が長すぎます（${errorInfo.currentValue}文字）。現在のプランでは${errorInfo.limit}文字までです。`,
+    SCHEDULE_DAYS_EXCEEDED: `予約日が遠すぎます（${errorInfo.currentValue}日後）。現在のプランでは${errorInfo.limit}日先までです。`,
+    SCHEDULE_INTERVAL_VIOLATED: `予約間隔が短すぎます（${errorInfo.currentValue}分）。現在のプランでは${errorInfo.limit}分以上空ける必要があります。`,
+    PENDING_POSTS_LIMIT_EXCEEDED: `同時予約数の上限に達しました（${errorInfo.limit}件）。既存の予約を削除するか、プランをアップグレードしてください。`,
+    THREAD_NOT_SUPPORTED: 'スレッド投稿は現在のプランではご利用いただけません。',
+    THREAD_LIMIT_EXCEEDED: `スレッド投稿数が多すぎます（${errorInfo.currentValue}件）。現在のプランでは${errorInfo.limit}件までです。`,
+  };
+
+  const message = errorMessages[errorInfo.error] || errorInfo.message;
+
+  showNotification({
+    title: 'プラン制限に達しました',
+    message,
+    actions: [
+      {
+        label: 'プランをアップグレード',
+        url: 'https://chronosky.app/settings/plans',
+        primary: true,
+      },
+      {
+        label: 'キャンセル',
+        dismiss: true,
+      },
+    ],
+  });
+}
 ```
+
+### トラブルシューティング
+
+#### 問題: "invalid input value for enum PostStatus: 'pending'"
+
+**原因:** `status` パラメータが小文字で送信され、データベースの enum 型（大文字）と一致しない
+
+**解決方法:** API は自動的に大文字に変換するため、この問題は発生しません。ただし、古いバージョンの API を使用している場合は、status パラメータを大文字で送信してください。
+
+```typescript
+// どちらも正常に動作します
+'?status=pending'  // ✅ 自動的に PENDING に変換
+'?status=PENDING'  // ✅ そのまま使用
+```
+
+#### 問題: プラン制限エラーが頻繁に発生する
+
+**原因:** 無料プランまたは低いプランを使用している
+
+**解決方法:**
+
+1. **文字数制限 (POST_LENGTH_EXCEEDED)**
+   - 投稿を短くする
+   - リンクを短縮する
+   - プランをアップグレードして制限を緩和
+
+2. **予約間隔制限 (SCHEDULE_INTERVAL_VIOLATED)**
+   - 予約投稿の間隔を広げる
+   - 一度に複数投稿せず、時間を分散させる
+   - プランをアップグレードして最小間隔を短縮
+
+3. **同時予約数制限 (PENDING_POSTS_LIMIT_EXCEEDED)**
+   - 既存の予約投稿を削除または完了させる
+   - プランをアップグレードして上限を増やす
+
+4. **スレッド投稿制限 (THREAD_NOT_SUPPORTED / THREAD_LIMIT_EXCEEDED)**
+   - 単一投稿に変更する
+   - スレッドの投稿数を減らす
+   - プランをアップグレードしてスレッド投稿を有効化
+
+#### 問題: "User not found" エラーが発生する
+
+**原因:** トークンから取得した DID がデータベースに登録されていない
+
+**解決方法:**
+
+1. ユーザーが Chronosky にサインアップしているか確認
+2. サインアップしていない場合、https://chronosky.app にアクセスしてサインアップを完了
+3. サインアップ後、再度 API を呼び出す
+
+#### 問題: DPoP Proof 検証エラー
+
+**原因:** DPoP Proof の生成が正しくない、または古いトークンを使用している
+
+**解決方法:**
+
+1. **jti（JWT ID）が一意であることを確認**
+   ```typescript
+   jti: crypto.randomUUID()  // ✅ 毎回新しい UUID を生成
+   ```
+
+2. **htm と htu が正確であることを確認**
+   ```typescript
+   htm: 'POST',  // HTTP メソッドは大文字
+   htu: 'https://api.chronosky.app/xrpc/app.chronosky.schedule.createPost',  // 完全な URL
+   ```
+
+3. **iat（発行時刻）が現在時刻であることを確認**
+   ```typescript
+   iat: Math.floor(Date.now() / 1000)  // Unix タイムスタンプ（秒）
+   ```
+
+4. **DPoP キーペアが正しいことを確認**
+   - Access Token 取得時に使用したキーペアと同じものを使用
+   - キーペアを再生成した場合は、トークンも再取得
 
 ## セキュリティベストプラクティス
 
@@ -948,7 +1393,7 @@ sequenceDiagram
         Note over Attacker,Bluesky: ❌ 攻撃シナリオ1: トークン盗難
 
         Attacker->>Attacker: 盗んだ access_token を入手
-        Attacker->>Chronosky: Authorization: DPoP &lt;stolen_token&gt;<br/>DPoP: &lt;fake_proof&gt;
+        Attacker->>Chronosky: "Authorization: DPoP <stolen_token> <br/>DPoP: <fake_proof>"
         Chronosky->>Bluesky: セッション検証<br/>(stolen_token + fake_proof)
         Bluesky-->>Chronosky: ❌ DPoP 検証失敗<br/>（キーペアが一致しない）
         Chronosky-->>Attacker: 401 INVALID_TOKEN
@@ -967,7 +1412,7 @@ sequenceDiagram
     rect rgb(240, 255, 240)
         Note over Client,Bluesky: ✅ 正規のフロー
 
-        Client->>Chronosky: Authorization: DPoP &lt;token&gt;<br/>DPoP: &lt;valid_proof&gt;
+        Client->>Chronosky: Authorization: DPoP <token><br/>DPoP: <valid_proof>
         Chronosky->>Bluesky: セッション検証
         Bluesky-->>Chronosky: ✅ DID 返却
         Chronosky->>Chronosky: DB でユーザー確認
@@ -1101,5 +1546,20 @@ async function verifyUserDID(expectedDID: string): Promise<boolean> {
 
 ---
 
-**最終更新**: 2026-01-12
-**バージョン**: 1.0.0
+**最終更新**: 2026-01-13
+**バージョン**: 1.1.0
+
+## 変更履歴
+
+### v1.1.0 (2026-01-13)
+
+- ✅ 全エンドポイントの詳細なドキュメント追加
+- ✅ プラン制限エラーコードの完全なリスト追加
+- ✅ トラブルシューティングセクション追加
+- ✅ エラーハンドリング実装例の拡充
+- ✅ `app.chronosky.schedule.getPost` エンドポイント追加
+- ✅ レスポンス形式の詳細化
+
+### v1.0.0 (2026-01-12)
+
+- 初版リリース
