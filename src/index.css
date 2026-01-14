@@ -3,9 +3,27 @@
   line-height: 1.5;
   font-weight: 400;
 
+  /* Color Variables - Light Mode */
+  --bg-color: #ffffff;
+  --text-color: #213547;
+  --text-color-secondary: #666666;
+  --card-bg: #ffffff;
+  --card-bg-secondary: #f9f9f9;
+  --border-color: #cccccc;
+  --border-color-light: #eeeeee;
+  --input-bg: #ffffff;
+  --button-bg: #1a1a1a; /* Dark button in light mode? Defaults were mixed */
+  --button-text: #ffffff;
+  --primary-color: #007bff;
+  --primary-hover: #0056b3;
+  --error-color: #d00000;
+  --error-bg: #ffeeee;
+  --success-color: #008000;
+  --focus-ring: #646cff;
+
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: var(--text-color);
+  background-color: var(--bg-color);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,13 +31,23 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* Dark Mode Variables */
+.dark {
+  --bg-color: #242424;
+  --text-color: rgba(255, 255, 255, 0.87);
+  --text-color-secondary: #aaaaaa;
+  --card-bg: #2a2a2a;
+  --card-bg-secondary: #333333;
+  --border-color: #444444;
+  --border-color-light: #333333;
+  --input-bg: #1a1a1a;
+  --button-bg: #444444;
+  --button-text: #ffffff;
+  --primary-color: #1a8cff;
+  --primary-hover: #0066cc;
+  --error-color: #ff6666;
+  --error-bg: #4d1a1a;
+  --success-color: #66ff66;
 }
 
 body {
@@ -28,6 +56,18 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+a {
+  font-weight: 500;
+  color: var(--focus-ring);
+  text-decoration: inherit;
+}
+a:hover {
+  color: var(--primary-hover);
 }
 
 h1 {
@@ -42,27 +82,30 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: border-color 0.25s, background-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: var(--focus-ring);
+  background-color: var(--primary-hover);
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 4px auto var(--focus-ring);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* Base Inputs */
+input, textarea, select {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--focus-ring);
+  border-color: transparent;
 }

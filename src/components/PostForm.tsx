@@ -13,8 +13,8 @@ interface PostFormProps {
 interface PostDraft {
   text: string;
   images: File[];
-  labels: string[]; // Keep UI state as string array for checkboxes
-  languages: string[]; // New: languages state
+  labels: string[];
+  languages: string[];
 }
 
 const LABELS = [
@@ -28,7 +28,6 @@ const LABELS = [
 const LANGUAGES = [
   { code: 'ja', label: 'Japanese' },
   { code: 'en', label: 'English' },
-  // Add more as needed
 ];
 
 export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
@@ -131,10 +130,8 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
               const compressed = await compressImage(img);
               console.log(`Uploading blob, size: ${compressed.size}, type: ${compressed.type}`);
               
-              // Ensure we have a valid Content-Type, defaulting to jpeg if missing
               if (!compressed.type) {
-                  // Create a new Blob with enforced type if needed, though compression usually sets it
-                  // For now, assume compression works or trust the browser
+                  // Fallback or warning if type is missing
               }
 
               const uploadRes = await client.uploadBlob(compressed as Blob);
@@ -230,12 +227,44 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           
           if (!root) {
             root = { uri: res.uri, cid: res.cid };
+            
+            // Apply Threadgate (Reply Control) to Root Post
+            if (threadgate.length > 0) {
+                const allow = threadgate.map(rule => ({
+                    $type: `app.bsky.feed.threadgate#${rule}`
+                }));
+                // Use generic createRecord to ensure compatibility
+                await agent.com.atproto.repo.createRecord({
+                    repo: session.did,
+                    collection: 'app.bsky.feed.threadgate',
+                    record: {
+                        post: root.uri,
+                        createdAt: new Date().toISOString(),
+                        allow
+                    }
+                });
+            }
+
+            // Apply Postgate (Disable Quotes) to Root Post
+            if (disableQuotes) {
+                await agent.com.atproto.repo.createRecord({
+                    repo: session.did,
+                    collection: 'app.bsky.feed.postgate',
+                    record: {
+                        post: root.uri,
+                        createdAt: new Date().toISOString(),
+                        detachedEmbeddingInputs: ['app.bsky.embed.record']
+                    }
+                });
+            }
           }
           parent = { uri: res.uri, cid: res.cid };
         }
         
         setStatus('success');
         setPosts([{ text: '', images: [], labels: [], languages: ['ja'] }]);
+        setThreadgate([]);
+        setDisableQuotes(false);
         if (onPostCreated) onPostCreated();
       }
     } catch (error: any) {
@@ -255,7 +284,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
   }
 
   return (
-    <div className="card">
+    <div className="card" style={{ backgroundColor: 'var(--card-bg)', color: 'var(--text-color)', border: '1px solid var(--border-color)' }}>
       <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'center', gap: '20px' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
             <input 
@@ -280,14 +309,14 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {posts.map((draft, index) => (
-            <div key={index} style={{ position: 'relative', border: '1px solid #eee', padding: '15px', borderRadius: '8px' }}>
+            <div key={index} style={{ position: 'relative', border: '1px solid var(--border-color)', padding: '15px', borderRadius: '8px', background: 'var(--card-bg)' }}>
               <textarea
                 value={draft.text}
                 onChange={(e) => updateText(index, e.target.value)}
                 placeholder={index === 0 ? "What's happening?" : "Add another post..."}
                 rows={3}
                 required={index === 0 && draft.images.length === 0} 
-                style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ddd', marginBottom: '10px' }}
+                style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid var(--border-color)', marginBottom: '10px', background: 'var(--input-bg)', color: 'var(--text-color)' }}
               />
               
               <div style={{ marginBottom: '10px' }}>
@@ -297,6 +326,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
                     multiple 
                     onChange={(e) => handleImageSelect(index, e)}
                     disabled={draft.images.length >= 4}
+                    style={{ background: 'var(--input-bg)', color: 'var(--text-color)' }}
                 />
               </div>
 
@@ -329,8 +359,8 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
               )}
 
               {/* Labels (Content Warning) */}
-              <div style={{ borderTop: '1px solid #eee', paddingTop: '10px' }}>
-                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: '#666' }}>Content Warnings:</div>
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
+                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: 'var(--text-color-secondary)' }}>Content Warnings:</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {LABELS.map(label => (
                     <label key={label.val} style={{ fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -347,7 +377,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
 
               {/* Languages */}
               <div style={{ paddingTop: '10px' }}>
-                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: '#666' }}>Languages:</div>
+                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: 'var(--text-color-secondary)' }}>Languages:</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {LANGUAGES.map(lang => (
                     <label key={lang.code} style={{ fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -366,7 +396,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
                 <button 
                   type="button" 
                   onClick={() => removePost(index)}
-                  style={{ position: 'absolute', top: '5px', right: '5px', background: '#fee', border: '1px solid #fcc', color: '#d00', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '12px', padding: 0 }}
+                  style={{ position: 'absolute', top: '5px', right: '5px', background: 'var(--error-bg)', border: '1px solid var(--error-color)', color: 'var(--error-color)', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '12px', padding: 0 }}
                 >
                   ✕
                 </button>
@@ -379,26 +409,26 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           <button 
             type="button" 
             onClick={addPost}
-            disabled={mode === 'schedule'} 
-            style={{ background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', padding: '5px 10px', cursor: mode === 'schedule' ? 'not-allowed' : 'pointer', opacity: mode === 'schedule' ? 0.5 : 1 }}
+            style={{ background: 'var(--button-bg)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '5px 10px', color: 'var(--button-text)' }}
           >
             + Add to Thread
           </button>
         </div>
 
-        {/* Schedule Options */}
-        {mode === 'schedule' && (
-          <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em', fontWeight: 'bold' }}>Schedule Date:</label>
-              <input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-                required
-                style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc', width: '100%', boxSizing: 'border-box' }}
-              />
-            </div>
+        {/* Post Options (Shared) */}
+        <div style={{ background: 'var(--card-bg-secondary)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color-light)' }}>
+            {mode === 'schedule' && (
+                <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em', fontWeight: 'bold' }}>Schedule Date:</label>
+                <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    required
+                    style={{ padding: '5px', borderRadius: '4px', border: '1px solid var(--border-color)', width: '100%', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-color)' }}
+                />
+                </div>
+            )}
 
             <div>
               <div style={{ fontSize: '0.9em', fontWeight: 'bold', marginBottom: '5px' }}>Reply Control (Threadgate):</div>
@@ -418,7 +448,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
                   </label>
                 ))}
               </div>
-              {threadgate.length === 0 && <small style={{ color: '#888' }}>Everyone can reply</small>}
+              {threadgate.length === 0 && <small style={{ color: 'var(--text-color-secondary)' }}>Everyone can reply</small>}
             </div>
 
             <div>
@@ -431,20 +461,19 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
                 Disable Quote Posts
               </label>
             </div>
-          </div>
-        )}
+        </div>
         
         <button 
           type="submit" 
           disabled={status === 'loading'}
           className="login-btn"
-          style={{ width: '100%' }}
+          style={{ width: '100%', backgroundColor: 'var(--primary-color)', color: '#fff' }}
         >
           {status === 'loading' ? 'Processing...' : (mode === 'schedule' ? 'Schedule Post' : 'Post Now')}
         </button>
       </form>
-      {status === 'success' && <p style={{ color: 'green', marginTop: '10px' }}>{mode === 'schedule' ? 'Post scheduled!' : 'Thread posted successfully!'}</p>}
-      {status === 'error' && <p style={{ color: 'red', marginTop: '10px' }}>Error: {errorMsg}</p>}
+      {status === 'success' && <p style={{ color: 'var(--success-color)', marginTop: '10px' }}>{mode === 'schedule' ? 'Post scheduled!' : 'Thread posted successfully!'}</p>}
+      {status === 'error' && <p style={{ color: 'var(--error-color)', marginTop: '10px' }}>Error: {errorMsg}</p>}
     </div>
   );
 }

@@ -53,29 +53,29 @@ export function ScheduleList({ session }: ScheduleListProps) {
   if (loading && (!schedules || schedules.length === 0)) return <div>Loading schedules...</div>;
 
   return (
-    <div className="card">
+    <div className="card" style={{ backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <h3>Scheduled Posts</h3>
-        <button onClick={loadSchedules}>Refresh</button>
+        <button onClick={loadSchedules} style={{ backgroundColor: 'var(--button-bg)', color: 'var(--button-text)' }}>Refresh</button>
       </div>
       
-      {errorMsg && <div style={{ color: 'red', marginBottom: '10px', padding: '10px', border: '1px solid red', borderRadius: '4px' }}>{errorMsg}</div>}
+      {errorMsg && <div style={{ color: 'var(--error-color)', marginBottom: '10px', padding: '10px', border: '1px solid var(--error-color)', borderRadius: '4px', backgroundColor: 'var(--error-bg)' }}>{errorMsg}</div>}
       
       {(!schedules || schedules.length === 0) && !loading && !errorMsg && <p>No pending schedules.</p>}
 
       <ul style={{ listStyle: 'none', padding: 0, textAlign: 'left' }}>
         {schedules?.map((schedule) => (
-          <li key={schedule.id} style={{ borderBottom: '1px solid #eee', padding: '15px 0' }}>
+          <li key={schedule.id} style={{ borderBottom: '1px solid var(--border-color-light)', padding: '15px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span style={{ fontWeight: 'bold', color: '#666' }}>
+              <span style={{ fontWeight: 'bold', color: 'var(--text-color-secondary)' }}>
                 Scheduled for: {new Date(schedule.scheduledAt).toLocaleString()}
               </span>
               <span style={{ 
                 padding: '2px 6px', 
                 borderRadius: '4px', 
                 fontSize: '0.8em',
-                background: schedule.status === 'PENDING' ? '#e3f2fd' : '#f5f5f5',
-                color: schedule.status === 'PENDING' ? '#1976d2' : '#666'
+                background: schedule.status === 'PENDING' ? 'rgba(25, 118, 210, 0.1)' : 'var(--card-bg-secondary)',
+                color: schedule.status === 'PENDING' ? 'var(--primary-color)' : 'var(--text-color-secondary)'
               }}>
                 {schedule.status}
               </span>
@@ -85,7 +85,7 @@ export function ScheduleList({ session }: ScheduleListProps) {
             
             <button 
               onClick={() => deleteSchedule(schedule.id)}
-              style={{ background: '#fee', border: '1px solid #fcc', color: '#d00', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+              style={{ background: 'var(--error-bg)', border: '1px solid var(--error-color)', color: 'var(--error-color)', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
             >
               Cancel Schedule
             </button>

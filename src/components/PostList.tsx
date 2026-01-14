@@ -105,9 +105,9 @@ export function PostList({ agent, did }: PostListProps) {
   if (loading && posts.length === 0) return <div>Loading timeline...</div>;
 
   return (
-    <div className="card">
+    <div className="card" style={{ backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}>
       <h3>Your Timeline</h3>
-      <button onClick={loadPosts} style={{marginBottom: '10px'}}>Refresh</button>
+      <button onClick={loadPosts} style={{marginBottom: '10px', backgroundColor: 'var(--button-bg)', color: 'var(--button-text)' }}>Refresh</button>
       <ul style={{ listStyle: 'none', padding: 0, textAlign: 'left' }}>
         {posts.map(({ post, reply }) => {
           const isLiked = !!post.viewer?.like;
@@ -115,8 +115,8 @@ export function PostList({ agent, did }: PostListProps) {
           const images = post.embed?.images || (post.embed?.media?.images) || [];
 
           return (
-            <li key={post.uri} style={{ borderBottom: '1px solid #eee', padding: '15px 0' }}>
-              {reply && <small style={{color: '#888'}}>Replying to user...</small>}
+            <li key={post.uri} style={{ borderBottom: '1px solid var(--border-color-light)', padding: '15px 0' }}>
+              {reply && <small style={{color: 'var(--text-color-secondary)'}}>Replying to user...</small>}
               
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
                 {post.author.avatar && (
@@ -127,8 +127,8 @@ export function PostList({ agent, did }: PostListProps) {
                   />
                 )}
                 <strong>{post.author.displayName || post.author.handle}</strong>
-                <span style={{ color: '#888', marginLeft: 5 }}>@{post.author.handle}</span>
-                <span style={{ color: '#888', marginLeft: 10, fontSize: '0.8em' }}>
+                <span style={{ color: 'var(--text-color-secondary)', marginLeft: 5 }}>@{post.author.handle}</span>
+                <span style={{ color: 'var(--text-color-secondary)', marginLeft: 10, fontSize: '0.8em' }}>
                   {new Date(post.indexedAt).toLocaleString()}
                 </span>
               </div>
@@ -142,29 +142,29 @@ export function PostList({ agent, did }: PostListProps) {
                       key={i} 
                       src={img.thumb} 
                       alt={img.alt} 
-                      style={{ height: 150, borderRadius: 8, border: '1px solid #ddd' }} 
+                      style={{ height: 150, borderRadius: 8, border: '1px solid var(--border-color)' }} 
                     />
                   ))}
                 </div>
               )}
 
               <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                <button onClick={() => handleReply({ post, reply })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555' }}>
+                <button onClick={() => handleReply({ post, reply })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-color)' }}>
                   💬 Reply
                 </button>
                 
-                <button onClick={() => toggleRepost({ post })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isReposted ? 'green' : '#555' }}>
+                <button onClick={() => toggleRepost({ post })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isReposted ? 'var(--success-color)' : 'var(--text-color)' }}>
                   🔁 {post.repostCount || 0}
                 </button>
                 
-                <button onClick={() => toggleLike({ post })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLiked ? 'red' : '#555' }}>
+                <button onClick={() => toggleLike({ post })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLiked ? 'var(--error-color)' : 'var(--text-color)' }}>
                   ❤️ {post.likeCount || 0}
                 </button>
 
                 {post.author.did === did && (
                   <button 
                       onClick={() => deletePost(post.uri)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d00', marginLeft: 'auto' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error-color)', marginLeft: 'auto' }}
                   >
                       🗑️
                   </button>
