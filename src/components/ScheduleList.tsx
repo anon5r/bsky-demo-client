@@ -81,7 +81,7 @@ export function ScheduleList({ session }: ScheduleListProps) {
               </span>
             </div>
             
-            <p style={{ margin: '5px 0 10px 0', whiteSpace: 'pre-wrap' }}>{schedule.content}</p>
+            <p style={{ margin: '5px 0 10px 0', whiteSpace: 'pre-wrap' }}>{schedule.text}</p>
             
             <button 
               onClick={() => deleteSchedule(schedule.id)}

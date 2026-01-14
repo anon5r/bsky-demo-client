@@ -19,11 +19,16 @@ export interface ContentLabels {
   violence?: boolean;
 }
 
+export interface SelfLabels {
+  $type: 'com.atproto.label.defs#selfLabels';
+  values: Array<{ val: string }>;
+}
+
 export interface ThreadPostItem {
-  content: string;
-  languages?: string[];
+  text: string;
+  langs?: string[];
   facets?: any[];
-  contentLabels?: ContentLabels; // Changed from labels to contentLabels with boolean flags
+  labels?: SelfLabels;
   embed?: {
     $type: string;
     images?: Array<{
@@ -36,7 +41,7 @@ export interface ThreadPostItem {
 
 // Type definitions based on the NEW guide
 export interface CreateScheduleRequest {
-  text?: string; // Backward compatibility, posts is preferred
+  text?: string; // Simple single post content
   posts?: ThreadPostItem[];
   scheduledAt: string;
   parentPostRecordKey?: string;
@@ -60,7 +65,8 @@ export interface ListSchedulesRequest {
 
 export interface ScheduledPost {
   id: string;
-  content: string;
+  text: string;
+  langs?: string[];
   scheduledAt: string;
   status: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   createdAt: string;
@@ -81,9 +87,9 @@ export interface ListSchedulesResponse {
 
 export interface UpdateScheduleRequest {
   id: string;
-  content?: string;
+  text?: string;
   scheduledAt?: string;
-  languages?: string[];
+  langs?: string[];
   facets?: any[];
   embed?: any;
 }

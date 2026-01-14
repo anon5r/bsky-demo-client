@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChronoskyClient, type BlobRef, type ContentLabels } from '../lib/chronosky-xrpc-client';
+import { ChronoskyClient } from '../lib/chronosky-xrpc-client';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 import imageCompression from 'browser-image-compression';
@@ -124,7 +124,7 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           // Handle images for schedule
           let embed: any = undefined;
           if (draft.images.length > 0) {
-            const uploaded: { alt: string; image: BlobRef }[] = [];
+            const uploaded: { alt: string; image: any }[] = [];
             for (const img of draft.images) {
               console.log(`Compressing image: ${img.name}`);
               const compressed = await compressImage(img);
@@ -152,16 +152,16 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
             };
           }
 
-          const contentLabels: ContentLabels = {};
-          draft.labels.forEach(l => {
-            (contentLabels as any)[l] = true;
-          });
+          const labels = draft.labels.length > 0 ? {
+            $type: 'com.atproto.label.defs#selfLabels',
+            values: draft.labels.map(val => ({ val }))
+          } : undefined;
 
           threadPosts.push({
-            content: draft.text,
+            text: draft.text,
             embed: embed,
-            contentLabels: Object.keys(contentLabels).length > 0 ? contentLabels : undefined,
-            languages: draft.languages.length > 0 ? draft.languages : undefined,
+            labels: labels,
+            langs: draft.languages.length > 0 ? draft.languages : undefined,
           });
         }
 

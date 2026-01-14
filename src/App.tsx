@@ -40,9 +40,78 @@ function App() {
     checkAuth();
   }, []);
 
-  // ... (checkAuth, initAgent, etc. remain same)
+  async function checkAuth() {
+    try {
+      const client = await getBlueskyClient();
+      const result = await client.init();
+      if (result) {
+        setBskySession(result.session);
+        await initAgent(result.session);
+        setCurrentView('dashboard');
+      }
+    } catch (e) {
+      console.error("Auth check failed", e);
+    }
+  }
 
-// ...
+  async function initAgent(session: OAuthSession) {
+    try {
+      const tokenInfo = await session.getTokenInfo();
+      const sessionManager = {
+        service: tokenInfo.aud,
+        fetch: (url: string, init?: RequestInit) => session.fetchHandler(url, init),
+        did: session.sub
+      };
+      // @ts-ignore
+      const agent = new Agent(sessionManager);
+      setAgent(agent);
+    } catch (e) {
+      console.error("Failed to init agent", e);
+    }
+  }
+
+  async function handleLogin(handle: string) {
+    const client = await getBlueskyClient();
+    try {
+      await client.signIn(handle, {
+        state: crypto.randomUUID(),
+        prompt: 'login',
+      });
+    } catch (e) {
+      console.error("Login failed", e);
+      alert("Login failed: " + e);
+    }
+  }
+
+  async function logout() {
+      // Assuming client has no explicit signOut that clears local state other than just dropping it? 
+      // OAuthClient usually manages storage.
+      if (bskySession) {
+          try {
+              await bskySession.signOut();
+          } catch (e) {
+              console.error("Sign out failed", e);
+          }
+      }
+      setBskySession(null);
+      setAgent(null);
+      setCurrentView('login');
+  }
+
+  async function handleOAuthSuccess(session?: OAuthSession) {
+      if (!session) {
+          console.error("No session returned from callback");
+          setCurrentView('login');
+          return;
+      }
+      setBskySession(session);
+      await initAgent(session);
+      setCurrentView('dashboard');
+  }
+
+  if (currentView === 'callback') {
+      return <OAuthCallback onSuccess={handleOAuthSuccess} />;
+  }
 
   return (
     <div className="App">
