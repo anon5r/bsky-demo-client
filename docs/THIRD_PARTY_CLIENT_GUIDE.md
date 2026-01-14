@@ -522,7 +522,8 @@ interface CreateScheduleRequest {
   // 以下のいずれかが必須（両方指定された場合は posts が優先）
   text?: string;                           // シンプルな単一投稿用（画像添付時は空でも可）
   posts?: Array<{                          // スレッド投稿用（高度な使用方法）
-    content: string;                       // 投稿本文（画像添付時は空でも可）
+    text: string;                          // 投稿本文（AT Protocol 標準、画像添付時は空でも可）
+    langs?: string[];                      // 言語設定（ISO 639-1、最大3件、例: ["ja", "en"]）
     facets?: Array<{                       // リンクやメンションの装飾（オプション）
       index: { byteStart: number; byteEnd: number };
       features: Array<{
@@ -543,11 +544,11 @@ interface CreateScheduleRequest {
         };
       }>;
     };
-    contentLabels?: {                      // セルフラベル（コンテンツ警告、オプション）
-      sexual?: boolean;                    // 性的内容
-      nudity?: boolean;                    // ヌード
-      porn?: boolean;                      // ポルノ
-      'graphic-media'?: boolean;           // 暴力的・グロテスクな画像
+    labels?: {                             // セルフラベル（AT Protocol 標準形式、オプション）
+      $type: 'com.atproto.label.defs#selfLabels';
+      values: Array<{
+        val: string;                       // ラベル値: "sexual", "nudity", "porn", "graphic-media"
+      }>;
     };
   }>;
 
@@ -575,18 +576,24 @@ interface CreateScheduleResponse {
 
 1. **最小予約時間:** 現在時刻から最低5分以上先に設定する必要があります
 2. **テキストと画像:**
-   - **テキストのみ:** `text` または `posts[].content` に本文を指定
-   - **画像のみ:** `embed.images` を指定し、`text` / `posts[].content` は空文字列でも可
+   - **テキストのみ:** `text` または `posts[].text` に本文を指定
+   - **画像のみ:** `embed.images` を指定し、`text` / `posts[].text` は空文字列でも可
    - **テキスト + 画像:** 両方を指定可能
    - **画像の alt テキスト:** アクセシビリティのため、画像の説明を `alt` フィールドに設定することを強く推奨
-3. **セルフラベル（コンテンツ警告）:**
-   - **sexual:** 性的な内容を含む投稿（成人向けコンテンツ）
-   - **nudity:** ヌードや露出の多い画像を含む投稿
-   - **porn:** ポルノグラフィックな内容を含む投稿
-   - **graphic-media:** 暴力的、グロテスク、または不快な画像を含む投稿
-   - 該当するラベルを `true` に設定することで、ユーザーに事前に警告を表示
-   - 複数のラベルを同時に指定可能
-4. **プラン制限:**
+3. **言語設定 (langs):**
+   - ISO 639-1 形式の言語コード配列（例: `["ja", "en"]`）
+   - 最大3件まで指定可能（AT Protocol 仕様）
+   - 省略可能（デフォルト: 言語設定なし）
+4. **セルフラベル（コンテンツ警告）:**
+   - AT Protocol 標準の `com.atproto.label.defs#selfLabels` 形式を使用
+   - 利用可能なラベル値:
+     - **sexual:** 性的な内容を含む投稿（成人向けコンテンツ）
+     - **nudity:** ヌードや露出の多い画像を含む投稿
+     - **porn:** ポルノグラフィックな内容を含む投稿
+     - **graphic-media:** 暴力的、グロテスク、または不快な画像を含む投稿
+   - 複数のラベルを同時に指定可能（`values` 配列に追加）
+   - ユーザーに事前に警告を表示
+5. **プラン制限:**
    - **文字数制限:** プランに応じた最大文字数（デフォルト: 300文字）
    - **予約可能日数:** プランに応じた最大予約日数（デフォルト: 7日）
    - **予約間隔:** 前回の予約投稿からの最小間隔（デフォルト: 1分）
@@ -647,7 +654,7 @@ const response = await callChronoskyAPI(
   {
     posts: [
       {
-        content: '',  // 空文字列でも可
+        text: '',  // 空文字列でも可
         embed: {
           $type: 'app.bsky.embed.images',
           images: [
@@ -667,7 +674,7 @@ const response = await callChronoskyAPI(
 **使用例（セルフラベル付き投稿）:**
 
 ```typescript
-// 成人向けコンテンツにセルフラベルを設定
+// 成人向けコンテンツにセルフラベルを設定（AT Protocol 標準形式）
 const response = await callChronoskyAPI(
   'POST',
   'app.chronosky.schedule.createPost',
@@ -676,7 +683,8 @@ const response = await callChronoskyAPI(
   {
     posts: [
       {
-        content: '水着グラビア写真集の表紙です',
+        text: '水着グラビア写真集の表紙です',
+        langs: ['ja'],  // 日本語投稿
         embed: {
           $type: 'app.bsky.embed.images',
           images: [
@@ -686,9 +694,12 @@ const response = await callChronoskyAPI(
             },
           ],
         },
-        contentLabels: {
-          sexual: true,  // 性的内容
-          nudity: true,  // ヌード（水着含む）
+        labels: {
+          $type: 'com.atproto.label.defs#selfLabels',
+          values: [
+            { val: 'sexual' },  // 性的内容
+            { val: 'nudity' },  // ヌード（水着含む）
+          ],
         },
       },
     ],
@@ -705,7 +716,8 @@ const response2 = await callChronoskyAPI(
   {
     posts: [
       {
-        content: '事故現場の写真（閲覧注意）',
+        text: '事故現場の写真（閲覧注意）',
+        langs: ['ja'],
         embed: {
           $type: 'app.bsky.embed.images',
           images: [
@@ -715,8 +727,11 @@ const response2 = await callChronoskyAPI(
             },
           ],
         },
-        contentLabels: {
-          'graphic-media': true,  // 暴力的・グロテスクな画像
+        labels: {
+          $type: 'com.atproto.label.defs#selfLabels',
+          values: [
+            { val: 'graphic-media' },  // 暴力的・グロテスクな画像
+          ],
         },
       },
     ],
@@ -735,9 +750,9 @@ const response = await callChronoskyAPI(
   dpopKey,
   {
     posts: [
-      { content: 'First post in thread' },
-      { content: 'Second post in thread' },
-      { content: 'Third post in thread' },
+      { text: 'First post in thread', langs: ['en'] },
+      { text: 'Second post in thread', langs: ['en'] },
+      { text: 'Third post in thread', langs: ['en'] },
     ],
     scheduledAt: '2026-01-15T10:00:00Z',
     threadgateRules: ['follower'],  // フォロワーのみ返信可能
@@ -781,7 +796,8 @@ const response = await callChronoskyAPI(
   {
     posts: [
       {
-        content: 'First post with image',
+        text: 'First post with image',
+        langs: ['en'],
         embed: {
           $type: 'app.bsky.embed.images',
           images: [
@@ -793,7 +809,8 @@ const response = await callChronoskyAPI(
         },
       },
       {
-        content: 'Second post with image',
+        text: 'Second post with image',
+        langs: ['en'],
         embed: {
           $type: 'app.bsky.embed.images',
           images: [
@@ -804,7 +821,7 @@ const response = await callChronoskyAPI(
           ],
         },
       },
-      { content: 'Third post without image' },
+      { text: 'Third post without image', langs: ['en'] },
     ],
     scheduledAt: '2026-01-15T10:00:00Z',
   }
@@ -814,10 +831,10 @@ const response = await callChronoskyAPI(
 **ポイント:**
 - スレッド内の各投稿に個別に画像を添付できます
 - すべての投稿に画像を添付する必要はありません
-- テキストなしで画像のみの投稿も可能です（`content: ''` でも可）
+- テキストなしで画像のみの投稿も可能です（`text: ''` でも可）
 - 1 つの投稿に最大 4 枚の画像を添付できます（Bluesky の制限）
 - **alt テキストの設定を強く推奨:** 視覚障害者がスクリーンリーダーで画像内容を理解できるよう、必ず画像の説明を設定してください
-- **セルフラベルの適切な設定:** 成人向けコンテンツや暴力的な画像を投稿する場合は、必ず適切なセルフラベルを設定してください。これにより、ユーザーは事前に警告を受け取り、閲覧を選択できます
+- **セルフラベルの適切な設定:** 成人向けコンテンツや暴力的な画像を投稿する場合は、必ず AT Protocol 標準の `labels` 形式で適切なセルフラベルを設定してください。これにより、ユーザーは事前に警告を受け取り、閲覧を選択できます
 
 #### `app.chronosky.schedule.listPosts`
 
@@ -841,7 +858,8 @@ interface ListPostsQuery {
 interface ListPostsResponse {
   posts: Array<{
     id: string;                    // 投稿 ID
-    content: string;               // 投稿本文
+    text: string;                  // 投稿本文（AT Protocol 標準）
+    langs?: string[];              // 言語設定（ISO 639-1、最大3件）
     scheduledAt: string;           // 予約日時（ISO 8601形式）
     status: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; // 投稿ステータス
     createdAt: string;             // 作成日時（ISO 8601形式）
@@ -880,19 +898,18 @@ const response = await callChronoskyAPI(
 const data = await response.json();
 console.log(`Total: ${data.pagination.total} posts`);
 data.posts.forEach(post => {
-  console.log(`${post.scheduledAt}: ${post.content}`);
+  console.log(`${post.scheduledAt}: ${post.text}`);
 });
 ```
 
-**大文字小文字の扱い:**
+**status パラメータの形式:**
 
-status パラメータは大文字小文字を問いません。`pending`、`PENDING`、`Pending` のいずれも受け付けます。
+status パラメータは大文字で指定する必要があります。`PENDING`, `EXECUTING`, `COMPLETED`, `FAILED`, `CANCELLED` のいずれかを指定してください。
 
 ```typescript
-// これらはすべて同じ結果を返します
-'?status=pending'
+// 正しい形式
 '?status=PENDING'
-'?status=Pending'
+'?status=COMPLETED'
 ```
 
 #### `app.chronosky.schedule.getPost`
@@ -915,16 +932,20 @@ interface GetPostQuery {
 interface GetPostResponse {
   post: {
     id: string;                    // 投稿 ID
-    content: string;               // 投稿本文
+    text: string;                  // 投稿本文（AT Protocol 標準）
+    langs?: string[];              // 言語設定（ISO 639-1、最大3件）
     scheduledAt: string;           // 予約日時（ISO 8601形式）
     status: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
     createdAt: string;             // 作成日時
     updatedAt: string;             // 更新日時
     parentPostId?: string;         // 親投稿 ID（スレッドの場合）
     threadOrder?: number;          // スレッド内の順序
-    languages?: string[];          // 言語設定
     facets?: Array<{...}>;         // リンクやメンションの装飾
     embed?: {...};                 // 埋め込みコンテンツ
+    labels?: {                     // セルフラベル（AT Protocol 標準）
+      $type: 'com.atproto.label.defs#selfLabels';
+      values: Array<{ val: string }>;
+    };
     threadgateRules?: string[];    // スレッド制限ルール
     disableQuotePosts?: boolean;   // 引用投稿無効化
   };
@@ -942,7 +963,7 @@ const response = await callChronoskyAPI(
 );
 
 const { post } = await response.json();
-console.log(`Post: ${post.content}`);
+console.log(`Post: ${post.text}`);
 console.log(`Scheduled for: ${post.scheduledAt}`);
 ```
 
@@ -957,9 +978,9 @@ console.log(`Scheduled for: ${post.scheduledAt}`);
 ```typescript
 interface UpdatePostRequest {
   id: string;                      // 更新する投稿 ID（必須）
-  content?: string;                // 新しい投稿本文
+  text?: string;                   // 新しい投稿本文（AT Protocol 標準）
+  langs?: string[];                // 言語設定（ISO 639-1、最大3件、例: ["ja", "en"]）
   scheduledAt?: string;            // 新しい予約日時（ISO 8601形式）
-  languages?: string[];            // 言語設定（例: ["ja", "en"]）
   facets?: Array<{                 // リンクやメンションの装飾
     index: { byteStart: number; byteEnd: number };
     features: Array<{
@@ -972,6 +993,10 @@ interface UpdatePostRequest {
     $type: string;
     // ... 埋め込みタイプに応じたフィールド
   };
+  labels?: {                       // セルフラベル（AT Protocol 標準）
+    $type: 'com.atproto.label.defs#selfLabels';
+    values: Array<{ val: string }>;
+  };
 }
 ```
 
@@ -981,7 +1006,8 @@ interface UpdatePostRequest {
 interface UpdatePostResponse {
   post: {
     id: string;
-    content: string;
+    text: string;                  // 投稿本文（AT Protocol 標準）
+    langs?: string[];              // 言語設定
     scheduledAt: string;
     status: string;
     updatedAt: string;
@@ -1006,7 +1032,8 @@ const response = await callChronoskyAPI(
   dpopKey,
   {
     id: 'post-id-here',
-    content: 'Updated post content',
+    text: 'Updated post content',
+    langs: ['en'],
     scheduledAt: '2026-01-16T10:00:00Z',
   }
 );
@@ -1191,7 +1218,7 @@ const createPostResponse = await callChronoskyAPI(
   {
     posts: [
       {
-        content: 'Check out this image!',
+        text: 'Check out this image!',
         embed: {
           $type: 'app.bsky.embed.images',
           images: [
@@ -1252,7 +1279,7 @@ const createPostResponse = await callChronoskyAPI(
     text: 'Multiple images post',
     posts: [
       {
-        content: 'Check out these images!',
+        text: 'Check out these images!',
         embed: {
           $type: 'app.bsky.embed.images',
           images: blobs.map((blob, index) => ({
@@ -1990,30 +2017,30 @@ Chronosky XRPC API の Lexicon 定義は AT Protocol の標準形式に従って
     },
     "threadPostItem": {
       "type": "object",
-      "description": "Thread post item. Either 'content' or 'embed' must be specified.",
+      "description": "Thread post item (AT Protocol standard). Either 'text' or 'embed' must be specified.",
       "properties": {
-        "content": {
+        "text": {
           "type": "string",
           "maxLength": 3000,
           "maxGraphemes": 300,
-          "description": "Post text content. Can be empty if 'embed' is specified."
+          "description": "Post text content (AT Protocol standard). Can be empty if 'embed' is specified."
         },
-        "languages": { "type": "array", "items": { "type": "string", "format": "language" } },
+        "langs": {
+          "type": "array",
+          "items": { "type": "string", "format": "language" },
+          "maxLength": 3,
+          "description": "Language codes (ISO 639-1, max 3 items per AT Protocol spec)"
+        },
         "facets": { "type": "array", "items": { "type": "ref", "ref": "app.bsky.richtext.facet" } },
         "embed": {
           "type": "union",
           "refs": ["app.bsky.embed.images", "app.bsky.embed.external", "app.bsky.embed.record"],
-          "description": "Embedded media (images, external link, or record). Required if 'content' is empty."
+          "description": "Embedded media (images, external link, or record). Required if 'text' is empty."
         },
-        "contentLabels": {
-          "type": "object",
-          "description": "Self-labels for content warnings.",
-          "properties": {
-            "sexual": { "type": "boolean", "description": "Sexual content (adult content)" },
-            "nudity": { "type": "boolean", "description": "Nudity or revealing imagery" },
-            "porn": { "type": "boolean", "description": "Pornographic content" },
-            "graphic-media": { "type": "boolean", "description": "Violent, gory, or disturbing imagery" }
-          }
+        "labels": {
+          "type": "ref",
+          "ref": "com.atproto.label.defs#selfLabels",
+          "description": "Self-labels for content warnings (AT Protocol standard format)"
         }
       }
     }
