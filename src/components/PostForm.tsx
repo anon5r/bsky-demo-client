@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChronoskyClient } from '../lib/chronosky-xrpc-client';
-import { Agent } from '@atproto/api';
+import { Agent, RichText } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 import imageCompression from 'browser-image-compression';
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
+import Mention from '@tiptap/extension-mention'
+import Link from '@tiptap/extension-link'
+import { getMentionSuggestion } from '../lib/tiptap-extensions'
 
 interface PostFormProps {
   agent: Agent;
@@ -12,13 +18,6 @@ interface PostFormProps {
   replyTo?: any;
   quotePost?: any;
   onCancel?: () => void;
-}
-
-interface PostDraft {
-  text: string;
-  images: File[];
-  labels: string[];
-  languages: string[];
 }
 
 const LABELS = [
@@ -35,7 +34,9 @@ const LANGUAGES = [
 ];
 
 export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', replyTo, quotePost, onCancel }: PostFormProps) {
-  const [posts, setPosts] = useState<PostDraft[]>([{ text: '', images: [], labels: [], languages: ['ja'] }]);
+  const [images, setImages] = useState<File[]>([]);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [languages, setLanguages] = useState<string[]>(['ja']);
   const [scheduledAt, setScheduledAt] = useState('');
   const [threadgate, setThreadgate] = useState<string[]>([]);
   const [disableQuotes, setDisableQuotes] = useState(false);
@@ -43,40 +44,46 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
   const [mode, setMode] = useState<'now' | 'schedule'>(defaultMode);
   const [showOptions, setShowOptions] = useState(false);
-
-  // Profile data for avatar
   const [avatar, setAvatar] = useState<string | null>(null);
-  React.useEffect(() => {
+
+  useEffect(() => {
       agent.getProfile({ actor: session.did }).then(res => setAvatar(res.data.avatar || null)).catch(() => {});
   }, [agent, session.did]);
 
-  const addPost = () => setPosts([...posts, { text: '', images: [], labels: [], languages: ['ja'] }]);
-  const removePost = (index: number) => setPosts(posts.filter((_, i) => i !== index));
-  
-  const updateText = (index: number, text: string) => {
-    const newPosts = [...posts];
-    newPosts[index].text = text;
-    setPosts(newPosts);
-  };
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({
+        placeholder: replyTo ? 'Post your reply' : "What's happening?",
+      }),
+      Link.configure({
+        openOnClick: false,
+      }),
+      Mention.configure({
+        HTMLAttributes: {
+          class: 'mention',
+        },
+        suggestion: getMentionSuggestion(agent),
+      }),
+    ],
+    content: '',
+  })
 
-  const handleImageSelect = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  // Cleanup editor on unmount is handled by useEditor
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newImages = Array.from(e.target.files);
-      const currentImages = posts[index].images;
-      if (currentImages.length + newImages.length > 4) {
+      if (images.length + newImages.length > 4) {
         alert("Max 4 images per post.");
         return;
       }
-      const updatedPosts = [...posts];
-      updatedPosts[index].images = [...currentImages, ...newImages];
-      setPosts(updatedPosts);
+      setImages([...images, ...newImages]);
     }
   };
 
-  const removeImage = (postIndex: number, imgIndex: number) => {
-    const updatedPosts = [...posts];
-    updatedPosts[postIndex].images = updatedPosts[postIndex].images.filter((_, i) => i !== imgIndex);
-    setPosts(updatedPosts);
+  const removeImage = (imgIndex: number) => {
+    setImages(images.filter((_, i) => i !== imgIndex));
   };
 
   async function compressImage(file: File): Promise<Blob> {
@@ -86,142 +93,170 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!editor) return;
+
     setStatus('loading');
     setErrorMsg('');
 
     try {
+      const text = editor.getText(); // Get plain text (mentions will be @handle)
+      
+      if (!text.trim() && images.length === 0 && !quotePost) {
+          setStatus('idle');
+          return;
+      }
+
+      // RichText Processing
+      const rt = new RichText({ text });
+      await rt.detectFacets(agent); // Detect mentions, links, tags
+
+      let embed: any = undefined;
+      let uploadedImages: any[] = [];
+
+      if (images.length > 0) {
+         // Upload images
+         if (mode === 'schedule') {
+             // For schedule, we use Chronosky's uploadBlob (via client later)
+             // But the logic is slightly different.
+             // We'll handle it inside the block below.
+         } else {
+             // Normal post
+             for (const img of images) {
+                const compressed = await compressImage(img);
+                const { data } = await agent.uploadBlob(compressed, { encoding: compressed.type });
+                uploadedImages.push({ image: data.blob, alt: "Image" });
+             }
+             embed = { $type: 'app.bsky.embed.images', images: uploadedImages };
+         }
+      }
+
+      // Handle Quote Embed
+      if (quotePost) {
+         const quoteEmbed = {
+            $type: 'app.bsky.embed.record',
+            record: {
+               uri: quotePost.uri,
+               cid: quotePost.cid
+            }
+         };
+
+         if (embed) {
+             embed = {
+                 $type: 'app.bsky.embed.recordWithMedia',
+                 media: embed,
+                 record: quoteEmbed
+             };
+         } else {
+             embed = quoteEmbed;
+         }
+      }
+
       if (mode === 'schedule') {
         const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
-        const threadPosts: any[] = [];
         
-        for (const draft of posts) {
-          if (!draft.text.trim() && draft.images.length === 0) continue;
-          let embed: any = undefined;
-          if (draft.images.length > 0) {
+        // Handle images for schedule (Chronosky upload)
+        let scheduleEmbed: any = undefined;
+        if (images.length > 0) {
             const uploaded: { alt: string; image: any }[] = [];
-            for (const img of draft.images) {
+            for (const img of images) {
               const compressed = await compressImage(img);
               const uploadRes = await client.uploadBlob(compressed as Blob);
               if (!uploadRes || !uploadRes.blob) throw new Error("Failed to upload image");
               uploaded.push({ alt: "Image", image: uploadRes.blob });
             }
-            embed = { $type: 'app.bsky.embed.images', images: uploaded };
-          }
-          const labels = draft.labels.length > 0 ? {
-            $type: 'com.atproto.label.defs#selfLabels',
-            values: draft.labels.map(val => ({ val }))
-          } : undefined;
-          threadPosts.push({
-            text: draft.text,
-            embed: embed,
-            labels: labels,
-            langs: draft.languages.length > 0 ? draft.languages : undefined,
-          });
+            scheduleEmbed = { $type: 'app.bsky.embed.images', images: uploaded };
+        }
+        // Quote in schedule? API might not support recordWithMedia fully yet or needs special structure.
+        // For simplicity, if quotePost exists, we might skip or try to add it if API supports.
+        // Guide says 'embed' field. So we can pass the same structure if compatible.
+        // If we have both images and quote, we need recordWithMedia.
+        // Let's assume Chronosky handles it if we pass the correct object.
+        if (quotePost) {
+             const quoteEmbed = {
+                $type: 'app.bsky.embed.record',
+                record: { uri: quotePost.uri, cid: quotePost.cid }
+             };
+             if (scheduleEmbed) {
+                 scheduleEmbed = {
+                     $type: 'app.bsky.embed.recordWithMedia',
+                     media: scheduleEmbed,
+                     record: quoteEmbed
+                 };
+             } else {
+                 scheduleEmbed = quoteEmbed;
+             }
         }
 
-        if (threadPosts.length === 0) throw new Error("Cannot create empty post");
+        const formattedLabels = labels.length > 0 ? {
+            $type: 'com.atproto.label.defs#selfLabels' as const,
+            values: labels.map(val => ({ val }))
+        } : undefined;
+
         if (!scheduledAt) throw new Error("Please select a date/time.");
 
         await client.createPost({
-          posts: threadPosts,
+          posts: [{
+            text: rt.text,
+            facets: rt.facets,
+            embed: scheduleEmbed,
+            labels: formattedLabels,
+            langs: languages.length > 0 ? languages : undefined,
+          }],
           scheduledAt: new Date(scheduledAt).toISOString(),
           threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,
           disableQuotePosts: disableQuotes
         });
-        
-        setStatus('success');
-        setPosts([{ text: '', images: [], labels: [], languages: ['ja'] }]);
-        setScheduledAt('');
-        if (onPostCreated) onPostCreated();
 
       } else {
         // Post Now
         let root: { uri: string; cid: string } | undefined = undefined;
         let parent: { uri: string; cid: string } | undefined = undefined;
         
-        // Handle Reply Context
         if (replyTo) {
-           // If we are replying to a post that is itself a reply, we need to respect the root.
-           // However, for simplicity here, we take the replyTo post as the parent.
-           // And if replyTo has a reply root, we use that. Otherwise replyTo is the root.
            const replyRoot = replyTo.record?.reply?.root || { uri: replyTo.uri, cid: replyTo.cid };
            root = replyRoot;
            parent = { uri: replyTo.uri, cid: replyTo.cid };
         }
 
-        for (const draft of posts) {
-          if (!draft.text.trim() && draft.images.length === 0 && !quotePost) continue;
-          
-          let embed: any = undefined;
-          let uploadedImages: any[] = [];
-
-          if (draft.images.length > 0) {
-             for (const img of draft.images) {
-                const compressed = await compressImage(img);
-                const { data } = await agent.uploadBlob(compressed, { encoding: compressed.type });
-                uploadedImages.push({ image: data.blob, alt: "Image" });
-             }
-             embed = { $type: 'app.bsky.embed.images', images: uploadedImages };
-          }
-
-          // Handle Quote Embed
-          if (quotePost && posts.indexOf(draft) === 0) {
-             const quoteEmbed = {
-                $type: 'app.bsky.embed.record',
-                record: {
-                   uri: quotePost.uri,
-                   cid: quotePost.cid
-                }
-             };
-
-             if (embed) {
-                 // Combined: images + record (quote)
-                 embed = {
-                     $type: 'app.bsky.embed.recordWithMedia',
-                     media: embed,
-                     record: quoteEmbed
-                 };
-             } else {
-                 embed = quoteEmbed;
-             }
-          }
-
-          const record: any = {
-            text: draft.text,
+        const record: any = {
+            text: rt.text,
+            facets: rt.facets,
             embed,
             reply: root && parent ? { root, parent } : undefined,
             createdAt: new Date().toISOString(),
-            langs: draft.languages.length > 0 ? draft.languages : undefined,
-          };
+            langs: languages.length > 0 ? languages : undefined,
+        };
 
-          if (draft.labels.length > 0) {
-            record.labels = { $type: 'com.atproto.label.defs#selfLabels', values: draft.labels.map(val => ({ val })) };
-          }
-
-          const res: any = await agent.post(record);
-          
-          if (!root) {
-            root = { uri: res.uri, cid: res.cid };
+                  if (labels.length > 0) {
+                    record.labels = { $type: 'com.atproto.label.defs#selfLabels' as const, values: labels.map(val => ({ val })) };
+                  }
+        const res: any = await agent.post(record);
+        
+        // Threadgate / Postgate logic
+        if (!replyTo) { // Only for root posts
+            const rootRef = { uri: res.uri, cid: res.cid };
             if (threadgate.length > 0) {
                 const allow = threadgate.map(rule => ({ $type: `app.bsky.feed.threadgate#${rule}` }));
                 await agent.com.atproto.repo.createRecord({
                     repo: session.did, collection: 'app.bsky.feed.threadgate',
-                    record: { post: root.uri, createdAt: new Date().toISOString(), allow }
+                    record: { post: rootRef.uri, createdAt: new Date().toISOString(), allow }
                 });
             }
             if (disableQuotes) {
                 await agent.com.atproto.repo.createRecord({
                     repo: session.did, collection: 'app.bsky.feed.postgate',
-                    record: { post: root.uri, createdAt: new Date().toISOString(), detachedEmbeddingInputs: ['app.bsky.embed.record'] }
+                    record: { post: rootRef.uri, createdAt: new Date().toISOString(), detachedEmbeddingInputs: ['app.bsky.embed.record'] }
                 });
             }
-          }
-          parent = { uri: res.uri, cid: res.cid };
         }
-        setStatus('success');
-        setPosts([{ text: '', images: [], labels: [], languages: ['ja'] }]);
-        if (onPostCreated) onPostCreated();
       }
+
+      setStatus('success');
+      editor.commands.clearContent();
+      setImages([]);
+      setScheduledAt('');
+      if (onPostCreated) onPostCreated();
+      
       setTimeout(() => setStatus('idle'), 3000);
     } catch (error: any) {
       console.error(error);
@@ -232,7 +267,6 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
 
   return (
     <div style={{ borderBottom: '1px solid var(--border-color-dark)', background: 'var(--card-bg)' }}>
-      {/* Reply Context Header */}
       {replyTo && (
          <div style={{ padding: '10px 20px', color: 'var(--text-color-secondary)', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)' }}>
             <i className="fa-solid fa-reply"></i> Replying to <strong>@{replyTo.author?.handle}</strong>
@@ -240,44 +274,38 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
       )}
 
       <form onSubmit={handleSubmit}>
-        {posts.map((draft, index) => (
-          <div key={index} className="compose-box" style={{ borderBottom: index < posts.length - 1 ? '1px dashed var(--border-color)' : 'none', paddingBottom: 0 }}>
-            <img src={avatar || 'https://via.placeholder.com/48'} className="avatar" alt="Me" style={{ width: 40, height: 40 }} />
-            <div style={{ flex: 1 }}>
-              <textarea
-                value={draft.text}
-                onChange={(e) => updateText(index, e.target.value)}
-                placeholder={index === 0 ? (replyTo ? "Post your reply" : "What's happening?") : "Add to thread..."}
-                className="compose-input"
-                style={{ minHeight: '80px', fontSize: '1.1rem' }}
-              />
-              
-              {/* Quote Preview */}
-              {quotePost && index === 0 && (
-                  <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, margin: '10px 0', pointerEvents: 'none', opacity: 0.8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
-                          <img src={quotePost.author?.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
-                          <strong>{quotePost.author?.displayName}</strong>
-                          <span style={{ color: 'var(--text-color-secondary)' }}>@{quotePost.author?.handle}</span>
-                      </div>
-                      <div>{quotePost.record?.text}</div>
-                  </div>
-              )}
-
-              {draft.images.length > 0 && (
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-                      {draft.images.map((img, imgIdx) => (
-                          <div key={imgIdx} style={{ position: 'relative', height: 80, width: 80 }}>
-                              <img src={URL.createObjectURL(img)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
-                              <button type="button" onClick={() => removeImage(index, imgIdx)} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                          </div>
-                      ))}
-                  </div>
-              )}
+          <div className="compose-box" style={{ flexDirection: 'column' }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+                <img src={avatar || 'https://via.placeholder.com/48'} className="avatar" alt="Me" style={{ width: 40, height: 40 }} />
+                <div style={{ flex: 1, border: '1px solid transparent' }}>
+                    <EditorContent editor={editor} />
+                </div>
             </div>
-            {posts.length > 1 && <button type="button" onClick={() => removePost(index)} style={{ alignSelf: 'flex-start', border: 'none', background: 'none', color: 'var(--text-color-secondary)', cursor: 'pointer' }}>✕</button>}
+            
+            {/* Image Previews */}
+            {images.length > 0 && (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10, paddingLeft: 52 }}>
+                    {images.map((img, imgIdx) => (
+                        <div key={imgIdx} style={{ position: 'relative', height: 80, width: 80 }}>
+                            <img src={URL.createObjectURL(img)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                            <button type="button" onClick={() => removeImage(imgIdx)} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Quote Preview */}
+            {quotePost && (
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, margin: '10px 0 0 52px', pointerEvents: 'none', opacity: 0.8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                        <img src={quotePost.author?.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
+                        <strong>{quotePost.author?.displayName}</strong>
+                        <span style={{ color: 'var(--text-color-secondary)' }}>@{quotePost.author?.handle}</span>
+                    </div>
+                    <div>{quotePost.record?.text}</div>
+                </div>
+            )}
           </div>
-        ))}
 
         {/* Tools and Actions Bar */}
         <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -285,7 +313,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
              {/* Image Upload Button */}
              <label style={{ cursor: 'pointer', color: 'var(--primary-color)', fontSize: '1.2rem' }}>
                 <i className="fa-regular fa-image"></i>
-                <input type="file" accept="image/*" multiple onChange={(e) => handleImageSelect(posts.length - 1, e)} style={{ display: 'none' }} disabled={posts[posts.length - 1].images.length >= 4} />
+                <input type="file" accept="image/*" multiple onChange={handleImageSelect} style={{ display: 'none' }} disabled={images.length >= 4} />
              </label>
 
              {/* Mode Switcher */}
@@ -295,10 +323,6 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                     <input type="checkbox" checked={mode === 'schedule'} onChange={(e) => setMode(e.target.checked ? 'schedule' : 'now')} style={{ display: 'none' }} />
                 </label>
              )}
-
-             <button type="button" onClick={addPost} style={{ border: 'none', background: 'none', color: 'var(--primary-color)', fontSize: '1.2rem', cursor: 'pointer' }} title="Add to thread">
-                <i className="fa-solid fa-plus"></i>
-             </button>
 
              <button type="button" onClick={() => setShowOptions(!showOptions)} style={{ border: 'none', background: 'none', color: 'var(--text-color-secondary)', fontSize: '1rem', cursor: 'pointer' }}>
                 <i className="fa-solid fa-gear"></i>
@@ -331,11 +355,9 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
              <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 {LANGUAGES.map(lang => (
                    <label key={lang.code} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <input type="checkbox" checked={posts[0].languages.includes(lang.code)} onChange={(e) => {
-                          const newPosts = [...posts];
-                          if (e.target.checked) newPosts.forEach(p => { if (!p.languages.includes(lang.code)) p.languages.push(lang.code) });
-                          else newPosts.forEach(p => { p.languages = p.languages.filter(l => l !== lang.code) });
-                          setPosts(newPosts);
+                      <input type="checkbox" checked={languages.includes(lang.code)} onChange={(e) => {
+                          if (e.target.checked) setLanguages([...languages, lang.code]);
+                          else setLanguages(languages.filter(l => l !== lang.code));
                       }} />
                       {lang.label}
                    </label>
@@ -346,11 +368,9 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
                 {LABELS.map(lbl => (
                    <label key={lbl.val} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <input type="checkbox" checked={posts[0].labels.includes(lbl.val)} onChange={(e) => {
-                          const newPosts = [...posts];
-                          if (e.target.checked) newPosts.forEach(p => { if (!p.labels.includes(lbl.val)) p.labels.push(lbl.val) });
-                          else newPosts.forEach(p => { p.labels = p.labels.filter(l => l !== lbl.val) });
-                          setPosts(newPosts);
+                      <input type="checkbox" checked={labels.includes(lbl.val)} onChange={(e) => {
+                          if (e.target.checked) setLabels([...labels, lbl.val]);
+                          else setLabels(labels.filter(l => l !== lbl.val));
                       }} />
                       {lbl.label}
                    </label>

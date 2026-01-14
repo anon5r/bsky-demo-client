@@ -252,15 +252,66 @@ body {
   gap: 12px;
 }
 
-.compose-input {
-  width: 100%;
-  border: none;
-  resize: none;
-  font-size: 1.2rem;
-  padding: 10px 0;
-  background: transparent;
+/* TipTap Editor Styles */
+.ProseMirror {
   outline: none;
   min-height: 100px;
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: var(--text-color);
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--text-color-secondary);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.mention {
+  color: var(--primary-color);
+  background-color: rgba(0, 133, 255, 0.1);
+  border-radius: 4px;
+  padding: 0 2px;
+  text-decoration: none;
+}
+
+/* Mention List Popover */
+.mention-list {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 0.5rem;
+  max-height: 250px;
+  overflow-y: auto;
+  min-width: 200px;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0.6rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-color);
+  border-radius: 4px;
+}
+
+.mention-item.is-selected, .mention-item:hover {
+  background: var(--nav-hover-bg);
+}
+
+.avatar-small {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .compose-tools {
