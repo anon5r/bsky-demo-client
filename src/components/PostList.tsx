@@ -3,15 +3,17 @@ import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 import { Modal } from './Modal';
 import { PostForm } from './PostForm';
+import { PostCard } from './PostCard';
 
 interface PostListProps {
   agent: Agent;
   did: string;
   filter?: 'timeline' | 'author';
   session: OAuthSession;
+  onPostClick?: (post: any) => void;
 }
 
-export function PostList({ agent, did, filter = 'timeline', session }: PostListProps) {
+export function PostList({ agent, did, filter = 'timeline', session, onPostClick }: PostListProps) {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
@@ -107,100 +109,20 @@ export function PostList({ agent, did, filter = 'timeline', session }: PostListP
 
   return (
     <div>
-        {posts.map(({ post, reply }) => {
-          const isLiked = !!post.viewer?.like;
-          const isReposted = !!post.viewer?.repost;
-          const images = post.embed?.images || (post.embed?.media?.images) || [];
-          
-          // Embed Record (Quote) handling
-          const embedRecord = post.embed?.record || post.embed?.media?.record;
-          const isQuote = embedRecord && embedRecord.$type === 'app.bsky.embed.record#view';
-          
-          const date = new Date(post.indexedAt);
-          const now = new Date();
-          const diff = (now.getTime() - date.getTime()) / 1000;
-          let timeString = date.toLocaleDateString();
-          if (diff < 60) timeString = 'just now';
-          else if (diff < 3600) timeString = `${Math.floor(diff / 60)}m`;
-          else if (diff < 86400) timeString = `${Math.floor(diff / 3600)}h`;
-
-          return (
-            <div key={post.uri} className="post-card">
-              <img 
-                src={post.author.avatar || 'https://via.placeholder.com/48'} 
-                alt={post.author.handle} 
-                className="avatar"
-              />
-              
-              <div className="post-content">
-                  {reply && (
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)', marginBottom: 4 }}>
-                          <i className="fa-solid fa-reply" style={{ marginRight: 5 }}></i>
-                          Replying to user...
-                      </div>
-                  )}
-                  
-                  <div className="post-header">
-                      <span className="display-name">{post.author.displayName || post.author.handle}</span>
-                      <span className="handle">@{post.author.handle}</span>
-                      <span className="timestamp">· {timeString}</span>
-                  </div>
-
-                  <div className="post-text">{post.record.text}</div>
-
-                  {images.length > 0 && (
-                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(images.length, 2)}, 1fr)`, gap: 4, marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
-                      {images.map((img: any, i: number) => (
-                        <img 
-                          key={i} 
-                          src={img.thumb} 
-                          alt={img.alt} 
-                          style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', cursor: 'pointer' }}
-                          onClick={() => window.open(img.fullsize, '_blank')}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Quoted Post Display */}
-                  {isQuote && embedRecord.record && (
-                     <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, marginTop: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
-                           <img src={embedRecord.record.author.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
-                           <strong>{embedRecord.record.author.displayName}</strong>
-                           <span style={{ color: 'var(--text-color-secondary)' }}>@{embedRecord.record.author.handle}</span>
-                        </div>
-                        <div>{embedRecord.record.value?.text}</div>
-                     </div>
-                  )}
-
-                  <div className="post-actions">
-                    <div className="action-item reply" onClick={(e) => { e.stopPropagation(); setReplyPost(post); }}>
-                       <i className="fa-regular fa-comment"></i> {post.replyCount || 0}
-                    </div>
-                    
-                    <div className={`action-item repost ${isReposted ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleRepost({ post }); }}>
-                       <i className="fa-solid fa-retweet"></i> {post.repostCount || 0}
-                    </div>
-
-                    <div className="action-item quote" onClick={(e) => { e.stopPropagation(); setQuotePost(post); }}>
-                       <i className="fa-solid fa-quote-left"></i>
-                    </div>
-                    
-                    <div className={`action-item like ${isLiked ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleLike({ post }); }}>
-                       <i className={`${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart`}></i> {post.likeCount || 0}
-                    </div>
-                    
-                    {post.author.did === did && (
-                        <div className="action-item" style={{ color: 'var(--error-color)' }} onClick={(e) => { e.stopPropagation(); deletePost(post.uri); }}>
-                            <i className="fa-regular fa-trash-can"></i>
-                        </div>
-                    )}
-                  </div>
-              </div>
-            </div>
-          );
-        })}
+        {posts.map((item) => (
+            <PostCard 
+               key={item.post.uri}
+               post={item.post}
+               reply={item.reply}
+               currentDid={session.sub}
+               onReply={() => setReplyPost(item.post)}
+               onQuote={() => setQuotePost(item.post)}
+               onDelete={deletePost}
+               onToggleLike={() => toggleLike(item)}
+               onToggleRepost={() => toggleRepost(item)}
+               onClick={onPostClick}
+            />
+        ))}
 
         {/* Reply Modal */}
         <Modal isOpen={!!replyPost} onClose={() => setReplyPost(null)} title="Reply">

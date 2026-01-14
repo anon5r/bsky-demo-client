@@ -7,16 +7,28 @@ import { PostList } from './components/PostList';
 import { ScheduleList } from './components/ScheduleList';
 import { LoginView } from './components/LoginView';
 import { Sidebar } from './components/Sidebar';
-import { UserProfile } from './components/UserProfile';
+import { Search } from './components/Search';
+import { NotificationList } from './components/NotificationList';
+import { ThreadView } from './components/ThreadView';
+import { UserList } from './components/UserList';
+import { ProfileView } from './components/ProfileView';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 
-type DashboardView = 'timeline' | 'scheduled' | 'profile';
+type ViewState = 
+  | { type: 'timeline' }
+  | { type: 'scheduled' }
+  | { type: 'profile'; did: string }
+  | { type: 'notifications' }
+  | { type: 'search' }
+  | { type: 'thread'; uri: string }
+  | { type: 'followers'; did: string }
+  | { type: 'following'; did: string };
 
 function App() {
   const [bskySession, setBskySession] = useState<OAuthSession | null>(null);
   const [currentView, setCurrentView] = useState<'login' | 'dashboard' | 'callback'>('login');
-  const [dashboardView, setDashboardView] = useState<DashboardView>('timeline');
+  const [dashboardView, setDashboardView] = useState<ViewState>({ type: 'timeline' });
   const [agent, setAgent] = useState<Agent | null>(null);
   const [scheduleUpdateTrigger, setScheduleUpdateTrigger] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -69,6 +81,14 @@ function App() {
       };
       // @ts-ignore
       const agent = new Agent(sessionManager);
+      (agent as any).session = {
+        did: session.sub,
+        handle: '',
+        accessJwt: 'dummy',
+        refreshJwt: 'dummy',
+        email: '',
+        emailConfirmed: true,
+      } as any;
       setAgent(agent);
     } catch (e) {
       console.error("Failed to init agent", e);
@@ -112,6 +132,23 @@ function App() {
       setCurrentView('dashboard');
   }
 
+  const handleViewChange = (type: any) => {
+      // Sidebar mostly passes strings, except if we want args
+      if (type === 'profile') {
+          setDashboardView({ type: 'profile', did: bskySession?.sub || '' });
+      } else {
+          setDashboardView({ type });
+      }
+  };
+
+  const handleGoToProfile = (did: string) => {
+      setDashboardView({ type: 'profile', did });
+  };
+
+  const handleGoToThread = (post: any) => {
+      setDashboardView({ type: 'thread', uri: post.uri });
+  };
+
   if (currentView === 'callback') {
       return <OAuthCallback onSuccess={handleOAuthSuccess} />;
   }
@@ -136,15 +173,15 @@ function App() {
         <Sidebar 
           agent={agent} 
           did={bskySession.sub} 
-          currentView={dashboardView}
-          onViewChange={setDashboardView}
+          currentView={dashboardView.type}
+          onViewChange={handleViewChange}
           onLogout={logout}
           onThemeToggle={toggleTheme}
         />
       )}
 
       <main className="main-content">
-        {dashboardView === 'timeline' && (
+        {dashboardView.type === 'timeline' && (
           <>
             <div className="feed-header">Home</div>
             {agent && bskySession && (
@@ -156,11 +193,18 @@ function App() {
                     }}
                 />
             )}
-            {agent && bskySession && <PostList agent={agent} did={bskySession.sub} session={bskySession} />}
+            {agent && bskySession && (
+                <PostList 
+                    agent={agent} 
+                    did={bskySession.sub} 
+                    session={bskySession} 
+                    onPostClick={handleGoToThread}
+                />
+            )}
           </>
         )}
 
-        {dashboardView === 'scheduled' && (
+        {dashboardView.type === 'scheduled' && (
           <>
              <div className="feed-header">Scheduled Posts</div>
              {agent && bskySession && (
@@ -180,18 +224,82 @@ function App() {
           </>
         )}
 
-        {dashboardView === 'profile' && (
+        {dashboardView.type === 'profile' && (
            <>
              <div className="feed-header">Profile</div>
-             <div style={{ padding: 20 }}>
-                {agent && bskySession && <UserProfile agent={agent} did={bskySession.sub} />}
-             </div>
-             {agent && bskySession && <PostList agent={agent} did={bskySession.sub} session={bskySession} filter="author" />}
+             {agent && bskySession && (
+                 <ProfileView 
+                    agent={agent} 
+                    did={dashboardView.did} 
+                    session={bskySession}
+                    onViewFollowers={(did) => setDashboardView({ type: 'followers', did })}
+                    onViewFollowing={(did) => setDashboardView({ type: 'following', did })}
+                 />
+             )}
            </>
         )}
-      </main>
 
-      {/* Right sidebar could go here */}
+        {dashboardView.type === 'thread' && (
+            <>
+                <div className="feed-header">
+                    <button className="btn-ghost" onClick={() => setDashboardView({ type: 'timeline' })} style={{ marginRight: 10 }}>
+                        <i className="fa-solid fa-arrow-left"></i>
+                    </button>
+                    Thread
+                </div>
+                {agent && bskySession && (
+                    <ThreadView 
+                        agent={agent} 
+                        uri={dashboardView.uri} 
+                        session={bskySession}
+                        onPostClick={handleGoToThread}
+                    />
+                )}
+            </>
+        )}
+
+        {dashboardView.type === 'search' && (
+            <>
+                <div className="feed-header">Search</div>
+                {agent && (
+                    <Search 
+                        agent={agent} 
+                        onSelectActor={handleGoToProfile} 
+                    />
+                )}
+            </>
+        )}
+
+        {dashboardView.type === 'notifications' && (
+            <>
+                <div className="feed-header">Notifications</div>
+                {agent && <NotificationList agent={agent} />}
+            </>
+        )}
+
+        {(dashboardView.type === 'followers' || dashboardView.type === 'following') && (
+            <>
+                <div className="feed-header">
+                    <button 
+                        className="btn-ghost" 
+                        onClick={() => setDashboardView({ type: 'profile', did: dashboardView.did })} 
+                        style={{ marginRight: 10 }}
+                    >
+                        <i className="fa-solid fa-arrow-left"></i>
+                    </button>
+                    {dashboardView.type === 'followers' ? 'Followers' : 'Following'}
+                </div>
+                {agent && (
+                    <UserList 
+                        agent={agent} 
+                        did={dashboardView.did} 
+                        type={dashboardView.type}
+                        onSelectActor={handleGoToProfile}
+                    />
+                )}
+            </>
+        )}
+      </main>
     </div>
   );
 }
