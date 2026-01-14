@@ -6,12 +6,17 @@ import { PostForm } from './components/PostForm';
 import { PostList } from './components/PostList';
 import { ScheduleList } from './components/ScheduleList';
 import { LoginView } from './components/LoginView';
+import { Sidebar } from './components/Sidebar';
+import { UserProfile } from './components/UserProfile';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
+
+type DashboardView = 'timeline' | 'scheduled' | 'profile';
 
 function App() {
   const [bskySession, setBskySession] = useState<OAuthSession | null>(null);
   const [currentView, setCurrentView] = useState<'login' | 'dashboard' | 'callback'>('login');
+  const [dashboardView, setDashboardView] = useState<DashboardView>('timeline');
   const [agent, setAgent] = useState<Agent | null>(null);
   const [scheduleUpdateTrigger, setScheduleUpdateTrigger] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -84,8 +89,6 @@ function App() {
   }
 
   async function logout() {
-      // Assuming client has no explicit signOut that clears local state other than just dropping it? 
-      // OAuthClient usually manages storage.
       if (bskySession) {
           try {
               await bskySession.signOut();
@@ -113,81 +116,87 @@ function App() {
       return <OAuthCallback onSuccess={handleOAuthSuccess} />;
   }
 
-  return (
-    <div className="App">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1>Bluesky + Chronosky Demo</h1>
-        <button onClick={toggleTheme}>
-          {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
-        </button>
+  if (!bskySession || currentView === 'login') {
+    return (
+      <div className="App">
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
+          <h1 style={{ marginBottom: 40 }}>Bluesky Demo Client</h1>
+          <LoginView onLogin={handleLogin} />
+          <button onClick={toggleTheme} className="btn-ghost" style={{ marginTop: 20 }}>
+            {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+          </button>
+        </div>
       </div>
-      
-      {!bskySession ? (
-        <LoginView onLogin={handleLogin} />
-      ) : (
-        <div className="dashboard">
-          <div className="header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-             <span>Logged in as: <strong>{bskySession.sub}</strong></span>
-             <button onClick={logout}>Logout</button>
-          </div>
+    );
+  }
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {agent && bskySession && (
-                <UserProfile agent={agent} did={bskySession.sub} />
-            )}
-            
+  return (
+    <div className="app-container">
+      {agent && bskySession && (
+        <Sidebar 
+          agent={agent} 
+          did={bskySession.sub} 
+          currentView={dashboardView}
+          onViewChange={setDashboardView}
+          onLogout={logout}
+          onThemeToggle={toggleTheme}
+        />
+      )}
+
+      <main className="main-content">
+        {dashboardView === 'timeline' && (
+          <>
+            <div className="feed-header">Home</div>
             {agent && bskySession && (
                 <PostForm 
                     agent={agent}
                     session={bskySession}
-                    onPostCreated={() => setScheduleUpdateTrigger(prev => prev + 1)}
+                    onPostCreated={() => {
+                      setScheduleUpdateTrigger(prev => prev + 1);
+                      // Refresh timeline if needed (PostList handles its own fetch, might need a trigger)
+                      // Ideally we pass a key or a callback to PostList to refresh.
+                      // For now, simple re-mount or relying on internal state updates.
+                    }}
                 />
             )}
-            
-            {bskySession && (
+            {agent && bskySession && <PostList agent={agent} did={bskySession.sub} />}
+          </>
+        )}
+
+        {dashboardView === 'scheduled' && (
+          <>
+             <div className="feed-header">Scheduled Posts</div>
+             {agent && bskySession && (
+                <PostForm 
+                    agent={agent}
+                    session={bskySession}
+                    onPostCreated={() => setScheduleUpdateTrigger(prev => prev + 1)}
+                    defaultMode="schedule"
+                />
+             )}
+             {bskySession && (
                 <ScheduleList 
                     key={scheduleUpdateTrigger}
                     session={bskySession}
                 />
-            )}
-            
-            {agent && bskySession && <PostList agent={agent} did={bskySession.sub} />}
-          </div>
-          
-        </div>
-      )}
+             )}
+          </>
+        )}
+
+        {dashboardView === 'profile' && (
+           <>
+             <div className="feed-header">Profile</div>
+             <div style={{ padding: 20 }}>
+                {agent && bskySession && <UserProfile agent={agent} did={bskySession.sub} />}
+             </div>
+             {agent && bskySession && <PostList agent={agent} did={bskySession.sub} filter="author" />}
+           </>
+        )}
+      </main>
+
+      {/* Right sidebar could go here */}
     </div>
   );
-}
-
-function UserProfile({ agent, did }: { agent: Agent, did: string }) {
-    const [profile, setProfile] = useState<any>(null);
-
-    useEffect(() => {
-        if (did) {
-            agent.getProfile({ actor: did }).then(res => {
-                setProfile(res.data);
-            }).catch(console.error);
-        }
-    }, [agent, did]);
-
-    if (!profile) return <div>Loading profile...</div>;
-
-    return (
-        <div className="card" style={{ textAlign: 'left', display: 'flex', gap: '15px', alignItems: 'center' }}>
-            {profile.avatar && (
-                <img 
-                    src={profile.avatar} 
-                    alt={profile.handle} 
-                    style={{ width: 60, height: 60, borderRadius: '50%' }} 
-                />
-            )}
-            <div style={{ flex: 1 }}>
-                <h3 style={{ margin: 0 }}>{profile.displayName || profile.handle}</h3>
-                <p style={{ margin: 0, color: '#666' }}>@{profile.handle}</p>
-            </div>
-        </div>
-    );
 }
 
 export default App;

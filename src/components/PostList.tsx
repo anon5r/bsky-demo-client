@@ -4,19 +4,27 @@ import { Agent } from '@atproto/api';
 interface PostListProps {
   agent: Agent;
   did: string;
+  filter?: 'timeline' | 'author';
 }
 
-export function PostList({ agent, did }: PostListProps) {
+export function PostList({ agent, did, filter = 'timeline' }: PostListProps) {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   async function loadPosts() {
     setLoading(true);
     try {
-      const response = await agent.getTimeline({ limit: 50 });
-      setPosts(response.data.feed);
+      let feed: any[] = [];
+      if (filter === 'author') {
+          const response = await agent.getAuthorFeed({ actor: did, limit: 50 });
+          feed = response.data.feed;
+      } else {
+          const response = await agent.getTimeline({ limit: 50 });
+          feed = response.data.feed;
+      }
+      setPosts(feed);
     } catch (e) {
-      console.error("Failed to load timeline", e);
+      console.error("Failed to load posts", e);
     } finally {
       setLoading(false);
     }
@@ -26,13 +34,12 @@ export function PostList({ agent, did }: PostListProps) {
     if (did) {
         loadPosts();
     }
-  }, [agent, did]);
+  }, [agent, did, filter]);
 
   async function deletePost(uri: string) {
     if (!confirm("Are you sure you want to delete this post?")) return;
     try {
        await agent.deletePost(uri);
-       // Optimistic update or reload
        setPosts(posts.filter(p => p.post.uri !== uri));
     } catch (e) {
         console.error("Failed to delete post", e);
@@ -55,7 +62,7 @@ export function PostList({ agent, did }: PostListProps) {
         item.post.viewer.like = res.uri;
         item.post.likeCount = (item.post.likeCount || 0) + 1;
       }
-      setPosts([...posts]); // Trigger re-render
+      setPosts([...posts]);
     } catch (e) {
       console.error("Like failed", e);
     }
@@ -82,98 +89,87 @@ export function PostList({ agent, did }: PostListProps) {
     }
   }
 
-  async function handleReply(item: any) {
-    const text = prompt(`Reply to @${item.post.author.handle}:`);
-    if (!text) return;
-
-    try {
-      const root = item.reply?.root || { uri: item.post.uri, cid: item.post.cid };
-      const parent = { uri: item.post.uri, cid: item.post.cid };
-
-      await agent.post({
-        text,
-        reply: { root, parent },
-        createdAt: new Date().toISOString()
-      });
-      alert("Reply sent!");
-    } catch (e) {
-      console.error("Reply failed", e);
-      alert("Reply failed");
-    }
+  if (loading && posts.length === 0) {
+      return <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-color-secondary)' }}>Loading...</div>;
   }
 
-  if (loading && posts.length === 0) return <div>Loading timeline...</div>;
+  if (posts.length === 0 && !loading) {
+      return <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-color-secondary)' }}>No posts found.</div>;
+  }
 
   return (
-    <div className="card" style={{ backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}>
-      <h3>Your Timeline</h3>
-      <button onClick={loadPosts} style={{marginBottom: '10px', backgroundColor: 'var(--button-bg)', color: 'var(--button-text)' }}>Refresh</button>
-      <ul style={{ listStyle: 'none', padding: 0, textAlign: 'left' }}>
+    <div>
         {posts.map(({ post, reply }) => {
           const isLiked = !!post.viewer?.like;
           const isReposted = !!post.viewer?.repost;
           const images = post.embed?.images || (post.embed?.media?.images) || [];
+          
+          // Basic elapsed time formatting
+          const date = new Date(post.indexedAt);
+          const now = new Date();
+          const diff = (now.getTime() - date.getTime()) / 1000;
+          let timeString = date.toLocaleDateString();
+          if (diff < 60) timeString = 'just now';
+          else if (diff < 3600) timeString = `${Math.floor(diff / 60)}m`;
+          else if (diff < 86400) timeString = `${Math.floor(diff / 3600)}h`;
 
           return (
-            <li key={post.uri} style={{ borderBottom: '1px solid var(--border-color-light)', padding: '15px 0' }}>
-              {reply && <small style={{color: 'var(--text-color-secondary)'}}>Replying to user...</small>}
+            <div key={post.uri} className="post-card">
+              <img 
+                src={post.author.avatar || 'https://via.placeholder.com/48'} 
+                alt={post.author.handle} 
+                className="avatar"
+              />
               
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
-                {post.author.avatar && (
-                  <img 
-                    src={post.author.avatar} 
-                    alt={post.author.handle} 
-                    style={{ width: 30, height: 30, borderRadius: '50%', marginRight: 10 }}
-                  />
-                )}
-                <strong>{post.author.displayName || post.author.handle}</strong>
-                <span style={{ color: 'var(--text-color-secondary)', marginLeft: 5 }}>@{post.author.handle}</span>
-                <span style={{ color: 'var(--text-color-secondary)', marginLeft: 10, fontSize: '0.8em' }}>
-                  {new Date(post.indexedAt).toLocaleString()}
-                </span>
+              <div className="post-content">
+                  {reply && (
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)', marginBottom: 4 }}>
+                          Replying to users...
+                      </div>
+                  )}
+                  
+                  <div className="post-header">
+                      <span className="display-name">{post.author.displayName || post.author.handle}</span>
+                      <span className="handle">@{post.author.handle}</span>
+                      <span className="timestamp">· {timeString}</span>
+                  </div>
+
+                  <div className="post-text">{post.record.text}</div>
+
+                  {images.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(images.length, 2)}, 1fr)`, gap: 4, marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
+                      {images.map((img: any, i: number) => (
+                        <img 
+                          key={i} 
+                          src={img.thumb} 
+                          alt={img.alt} 
+                          style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', cursor: 'pointer' }}
+                          onClick={() => window.open(img.fullsize, '_blank')}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="post-actions">
+                    <div className="action-item reply" onClick={() => alert("Reply feature coming soon!")}>
+                       💬 {post.replyCount || 0}
+                    </div>
+                    <div className={`action-item repost ${isReposted ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleRepost({ post }); }}>
+                       🔁 {post.repostCount || 0}
+                    </div>
+                    <div className={`action-item like ${isLiked ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleLike({ post }); }}>
+                       {isLiked ? '❤️' : '♡'} {post.likeCount || 0}
+                    </div>
+                    {post.author.did === did && (
+                        <div className="action-item" style={{ color: 'var(--error-color)' }} onClick={(e) => { e.stopPropagation(); deletePost(post.uri); }}>
+                            🗑️
+                        </div>
+                    )}
+                  </div>
               </div>
-
-              <p style={{ margin: '5px 0 10px 0', whiteSpace: 'pre-wrap' }}>{post.record.text}</p>
-
-              {images.length > 0 && (
-                <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', marginBottom: '10px' }}>
-                  {images.map((img: any, i: number) => (
-                    <img 
-                      key={i} 
-                      src={img.thumb} 
-                      alt={img.alt} 
-                      style={{ height: 150, borderRadius: 8, border: '1px solid var(--border-color)' }} 
-                    />
-                  ))}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                <button onClick={() => handleReply({ post, reply })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-color)' }}>
-                  💬 Reply
-                </button>
-                
-                <button onClick={() => toggleRepost({ post })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isReposted ? 'var(--success-color)' : 'var(--text-color)' }}>
-                  🔁 {post.repostCount || 0}
-                </button>
-                
-                <button onClick={() => toggleLike({ post })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLiked ? 'var(--error-color)' : 'var(--text-color)' }}>
-                  ❤️ {post.likeCount || 0}
-                </button>
-
-                {post.author.did === did && (
-                  <button 
-                      onClick={() => deletePost(post.uri)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error-color)', marginLeft: 'auto' }}
-                  >
-                      🗑️
-                  </button>
-                )}
-              </div>
-            </li>
+            </div>
           );
         })}
-      </ul>
     </div>
   );
 }

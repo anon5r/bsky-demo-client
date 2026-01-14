@@ -8,6 +8,7 @@ interface PostFormProps {
   agent: Agent;
   session: OAuthSession;
   onPostCreated?: () => void;
+  defaultMode?: 'now' | 'schedule';
 }
 
 interface PostDraft {
@@ -30,14 +31,21 @@ const LANGUAGES = [
   { code: 'en', label: 'English' },
 ];
 
-export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
+export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }: PostFormProps) {
   const [posts, setPosts] = useState<PostDraft[]>([{ text: '', images: [], labels: [], languages: ['ja'] }]);
   const [scheduledAt, setScheduledAt] = useState('');
   const [threadgate, setThreadgate] = useState<string[]>([]);
   const [disableQuotes, setDisableQuotes] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
-  const [mode, setMode] = useState<'now' | 'schedule'>('now');
+  const [mode, setMode] = useState<'now' | 'schedule'>(defaultMode);
+  const [showOptions, setShowOptions] = useState(false);
+
+  // Profile data for avatar (optional optimization: pass from parent)
+  const [avatar, setAvatar] = useState<string | null>(null);
+  React.useEffect(() => {
+      agent.getProfile({ actor: session.did }).then(res => setAvatar(res.data.avatar || null)).catch(() => {});
+  }, [agent, session.did]);
 
   const addPost = () => setPosts([...posts, { text: '', images: [], labels: [], languages: ['ja'] }]);
   const removePost = (index: number) => setPosts(posts.filter((_, i) => i !== index));
@@ -48,38 +56,14 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
     setPosts(newPosts);
   };
 
-  const updateLabels = (index: number, labelVal: string, checked: boolean) => {
-    const newPosts = [...posts];
-    if (checked) {
-      newPosts[index].labels = [...newPosts[index].labels, labelVal];
-    } else {
-      newPosts[index].labels = newPosts[index].labels.filter(l => l !== labelVal);
-    }
-    setPosts(newPosts);
-  };
-
-  const updateLanguages = (index: number, langCode: string, checked: boolean) => {
-    const newPosts = [...posts];
-    if (checked) {
-      if (!newPosts[index].languages.includes(langCode)) {
-        newPosts[index].languages = [...newPosts[index].languages, langCode];
-      }
-    } else {
-      newPosts[index].languages = newPosts[index].languages.filter(l => l !== langCode);
-    }
-    setPosts(newPosts);
-  };
-
   const handleImageSelect = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newImages = Array.from(e.target.files);
       const currentImages = posts[index].images;
-      
       if (currentImages.length + newImages.length > 4) {
-        alert("You can only upload up to 4 images per post.");
+        alert("Max 4 images per post.");
         return;
       }
-
       const updatedPosts = [...posts];
       updatedPosts[index].images = [...currentImages, ...newImages];
       setPosts(updatedPosts);
@@ -93,17 +77,8 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
   };
 
   async function compressImage(file: File): Promise<Blob> {
-    const options = {
-      maxSizeMB: 0.9, 
-      maxWidthOrHeight: 2000,
-      useWebWorker: true,
-    };
-    try {
-      return await imageCompression(file, options);
-    } catch (error) {
-      console.error("Image compression failed", error);
-      throw error;
-    }
+    const options = { maxSizeMB: 0.9, maxWidthOrHeight: 2000, useWebWorker: true };
+    return await imageCompression(file, options);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -113,50 +88,26 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
 
     try {
       if (mode === 'schedule') {
-        // Chronosky Schedule
         const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
-        
         const threadPosts: any[] = [];
         
         for (const draft of posts) {
           if (!draft.text.trim() && draft.images.length === 0) continue;
-
-          // Handle images for schedule
           let embed: any = undefined;
           if (draft.images.length > 0) {
             const uploaded: { alt: string; image: any }[] = [];
             for (const img of draft.images) {
-              console.log(`Compressing image: ${img.name}`);
               const compressed = await compressImage(img);
-              console.log(`Uploading blob, size: ${compressed.size}, type: ${compressed.type}`);
-              
-              if (!compressed.type) {
-                  // Fallback or warning if type is missing
-              }
-
               const uploadRes = await client.uploadBlob(compressed as Blob);
-              console.log('Upload response:', uploadRes);
-
-              if (!uploadRes || !uploadRes.blob) {
-                  throw new Error("Failed to upload image: No blob returned");
-              }
-
-              uploaded.push({
-                alt: "Image", 
-                image: uploadRes.blob,
-              });
+              if (!uploadRes || !uploadRes.blob) throw new Error("Failed to upload image");
+              uploaded.push({ alt: "Image", image: uploadRes.blob });
             }
-            embed = {
-              $type: 'app.bsky.embed.images',
-              images: uploaded
-            };
+            embed = { $type: 'app.bsky.embed.images', images: uploaded };
           }
-
           const labels = draft.labels.length > 0 ? {
             $type: 'com.atproto.label.defs#selfLabels',
             values: draft.labels.map(val => ({ val }))
           } : undefined;
-
           threadPosts.push({
             text: draft.text,
             embed: embed,
@@ -165,9 +116,8 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           });
         }
 
-        if (threadPosts.length === 0) {
-            throw new Error("Cannot create empty post");
-        }
+        if (threadPosts.length === 0) throw new Error("Cannot create empty post");
+        if (!scheduledAt) throw new Error("Please select a date/time.");
 
         await client.createPost({
           posts: threadPosts,
@@ -179,33 +129,24 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
         setStatus('success');
         setPosts([{ text: '', images: [], labels: [], languages: ['ja'] }]);
         setScheduledAt('');
-        setThreadgate([]);
-        setDisableQuotes(false);
         if (onPostCreated) onPostCreated();
 
       } else {
-        // Post Now (Sequentially for threads)
+        // Post Now
         let root: { uri: string; cid: string } | undefined = undefined;
         let parent: { uri: string; cid: string } | undefined = undefined;
         
         for (const draft of posts) {
           if (!draft.text.trim() && draft.images.length === 0) continue;
-          
           let embed: any = undefined;
           if (draft.images.length > 0) {
              const uploaded = [];
              for (const img of draft.images) {
                 const compressed = await compressImage(img);
                 const { data } = await agent.uploadBlob(compressed, { encoding: compressed.type });
-                uploaded.push({
-                    image: data.blob,
-                    alt: "Image"
-                });
+                uploaded.push({ image: data.blob, alt: "Image" });
              }
-             embed = {
-                 $type: 'app.bsky.embed.images',
-                 images: uploaded
-             };
+             embed = { $type: 'app.bsky.embed.images', images: uploaded };
           }
 
           const record: any = {
@@ -217,263 +158,178 @@ export function PostForm({ agent, session, onPostCreated }: PostFormProps) {
           };
 
           if (draft.labels.length > 0) {
-            record.labels = {
-              $type: 'com.atproto.label.defs#selfLabels',
-              values: draft.labels.map(val => ({ val }))
-            };
+            record.labels = { $type: 'com.atproto.label.defs#selfLabels', values: draft.labels.map(val => ({ val })) };
           }
 
           const res: any = await agent.post(record);
           
           if (!root) {
             root = { uri: res.uri, cid: res.cid };
-            
-            // Apply Threadgate (Reply Control) to Root Post
             if (threadgate.length > 0) {
-                const allow = threadgate.map(rule => ({
-                    $type: `app.bsky.feed.threadgate#${rule}`
-                }));
-                // Use generic createRecord to ensure compatibility
+                const allow = threadgate.map(rule => ({ $type: `app.bsky.feed.threadgate#${rule}` }));
                 await agent.com.atproto.repo.createRecord({
-                    repo: session.did,
-                    collection: 'app.bsky.feed.threadgate',
-                    record: {
-                        post: root.uri,
-                        createdAt: new Date().toISOString(),
-                        allow
-                    }
+                    repo: session.did, collection: 'app.bsky.feed.threadgate',
+                    record: { post: root.uri, createdAt: new Date().toISOString(), allow }
                 });
             }
-
-            // Apply Postgate (Disable Quotes) to Root Post
             if (disableQuotes) {
                 await agent.com.atproto.repo.createRecord({
-                    repo: session.did,
-                    collection: 'app.bsky.feed.postgate',
-                    record: {
-                        post: root.uri,
-                        createdAt: new Date().toISOString(),
-                        detachedEmbeddingInputs: ['app.bsky.embed.record']
-                    }
+                    repo: session.did, collection: 'app.bsky.feed.postgate',
+                    record: { post: root.uri, createdAt: new Date().toISOString(), detachedEmbeddingInputs: ['app.bsky.embed.record'] }
                 });
             }
           }
           parent = { uri: res.uri, cid: res.cid };
         }
-        
         setStatus('success');
         setPosts([{ text: '', images: [], labels: [], languages: ['ja'] }]);
-        setThreadgate([]);
-        setDisableQuotes(false);
         if (onPostCreated) onPostCreated();
       }
+      setTimeout(() => setStatus('idle'), 3000);
     } catch (error: any) {
       console.error(error);
       setStatus('error');
-      
-      if (error.error === 'USER_NOT_REGISTERED') {
-        setErrorMsg(
-          <span>
-            User is not registered in Chronosky. Please <a href="https://chronosky.app" target="_blank" rel="noopener noreferrer">sign up first</a>.
-          </span>
-        );
-      } else {
-        setErrorMsg(error instanceof Error ? error.message : 'Unknown error');
-      }
+      setErrorMsg(error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
   return (
-    <div className="card" style={{ backgroundColor: 'var(--card-bg)', color: 'var(--text-color)', border: '1px solid var(--border-color)' }}>
-      <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'center', gap: '20px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-            <input 
-                type="radio" 
-                name="mode" 
-                value="now" 
-                checked={mode === 'now'} 
-                onChange={() => setMode('now')} 
-            /> Post Now
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-            <input 
-                type="radio" 
-                name="mode" 
-                value="schedule" 
-                checked={mode === 'schedule'} 
-                onChange={() => setMode('schedule')}
-            /> Schedule (Chronosky)
-        </label>
-      </div>
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {posts.map((draft, index) => (
-            <div key={index} style={{ position: 'relative', border: '1px solid var(--border-color)', padding: '15px', borderRadius: '8px', background: 'var(--card-bg)' }}>
+    <div style={{ borderBottom: '1px solid var(--border-color-dark)', background: 'var(--card-bg)' }}>
+      <form onSubmit={handleSubmit}>
+        {posts.map((draft, index) => (
+          <div key={index} className="compose-box" style={{ borderBottom: index < posts.length - 1 ? '1px dashed var(--border-color)' : 'none', paddingBottom: 0 }}>
+            <img src={avatar || 'https://via.placeholder.com/48'} className="avatar" alt="Me" style={{ width: 40, height: 40 }} />
+            <div style={{ flex: 1 }}>
               <textarea
                 value={draft.text}
                 onChange={(e) => updateText(index, e.target.value)}
-                placeholder={index === 0 ? "What's happening?" : "Add another post..."}
-                rows={3}
-                required={index === 0 && draft.images.length === 0} 
-                style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid var(--border-color)', marginBottom: '10px', background: 'var(--input-bg)', color: 'var(--text-color)' }}
+                placeholder={index === 0 ? "What's happening?" : "Add to thread..."}
+                className="compose-input"
+                style={{ minHeight: '80px', fontSize: '1.1rem' }}
               />
               
-              <div style={{ marginBottom: '10px' }}>
-                <input 
-                    type="file" 
-                    accept="image/*" 
-                    multiple 
-                    onChange={(e) => handleImageSelect(index, e)}
-                    disabled={draft.images.length >= 4}
-                    style={{ background: 'var(--input-bg)', color: 'var(--text-color)' }}
-                />
-              </div>
-
               {draft.images.length > 0 && (
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
                       {draft.images.map((img, imgIdx) => (
-                          <div key={imgIdx} style={{ position: 'relative', width: '100px', height: '100px' }}>
-                              <img 
-                                  src={URL.createObjectURL(img)} 
-                                  alt="Preview" 
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} 
-                              />
-                              <button
-                                  type="button"
-                                  onClick={() => removeImage(index, imgIdx)}
-                                  style={{
-                                      position: 'absolute', top: 0, right: 0,
-                                      background: 'rgba(0,0,0,0.5)', color: 'white',
-                                      border: 'none', borderRadius: '50%',
-                                      width: '20px', height: '20px', cursor: 'pointer',
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      fontSize: '12px'
-                                  }}
-                              >
-                                  ✕
-                              </button>
+                          <div key={imgIdx} style={{ position: 'relative', height: 80, width: 80 }}>
+                              <img src={URL.createObjectURL(img)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                              <button type="button" onClick={() => removeImage(index, imgIdx)} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                           </div>
                       ))}
                   </div>
               )}
-
-              {/* Labels (Content Warning) */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: 'var(--text-color-secondary)' }}>Content Warnings:</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {LABELS.map(label => (
-                    <label key={label.val} style={{ fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={draft.labels.includes(label.val)}
-                        onChange={(e) => updateLabels(index, label.val, e.target.checked)}
-                      />
-                      {label.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Languages */}
-              <div style={{ paddingTop: '10px' }}>
-                <div style={{ fontSize: '0.9em', marginBottom: '5px', color: 'var(--text-color-secondary)' }}>Languages:</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {LANGUAGES.map(lang => (
-                    <label key={lang.code} style={{ fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={draft.languages.includes(lang.code)}
-                        onChange={(e) => updateLanguages(index, lang.code, e.target.checked)}
-                      />
-                      {lang.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {posts.length > 1 && (
-                <button 
-                  type="button" 
-                  onClick={() => removePost(index)}
-                  style={{ position: 'absolute', top: '5px', right: '5px', background: 'var(--error-bg)', border: '1px solid var(--error-color)', color: 'var(--error-color)', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '12px', padding: 0 }}
-                >
-                  ✕
-                </button>
-              )}
             </div>
-          ))}
+            {posts.length > 1 && <button type="button" onClick={() => removePost(index)} style={{ alignSelf: 'flex-start', border: 'none', background: 'none', color: 'var(--text-color-secondary)', cursor: 'pointer' }}>✕</button>}
+          </div>
+        ))}
+
+        {/* Tools and Actions Bar */}
+        <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 15, alignItems: 'center' }}>
+             {/* Image Upload Button */}
+             <label style={{ cursor: 'pointer', color: 'var(--primary-color)', fontSize: '1.2rem' }}>
+                📷
+                <input type="file" accept="image/*" multiple onChange={(e) => handleImageSelect(posts.length - 1, e)} style={{ display: 'none' }} disabled={posts[posts.length - 1].images.length >= 4} />
+             </label>
+
+             {/* Mode Switcher */}
+             <label style={{ cursor: 'pointer', color: mode === 'schedule' ? 'var(--primary-color)' : 'var(--text-color-secondary)', fontSize: '1.2rem' }} title="Schedule">
+                ⏳
+                <input type="checkbox" checked={mode === 'schedule'} onChange={(e) => setMode(e.target.checked ? 'schedule' : 'now')} style={{ display: 'none' }} />
+             </label>
+
+             <button type="button" onClick={addPost} style={{ border: 'none', background: 'none', color: 'var(--primary-color)', fontSize: '1.2rem', cursor: 'pointer' }} title="Add to thread">
+                ➕
+             </button>
+
+             <button type="button" onClick={() => setShowOptions(!showOptions)} style={{ border: 'none', background: 'none', color: 'var(--text-color-secondary)', fontSize: '1rem', cursor: 'pointer' }}>
+                ⚙️
+             </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+             {mode === 'schedule' && (
+                 <input 
+                    type="datetime-local" 
+                    value={scheduledAt} 
+                    onChange={(e) => setScheduledAt(e.target.value)} 
+                    style={{ padding: '4px', fontSize: '0.8rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
+                 />
+             )}
+             <button type="submit" disabled={status === 'loading'} className="btn" style={{ backgroundColor: 'var(--primary-color)', color: '#fff', borderRadius: 9999, padding: '8px 20px', fontSize: '0.95rem' }}>
+                {status === 'loading' ? 'Posting...' : (mode === 'schedule' ? 'Schedule' : 'Post')}
+             </button>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button 
-            type="button" 
-            onClick={addPost}
-            style={{ background: 'var(--button-bg)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '5px 10px', color: 'var(--button-text)' }}
-          >
-            + Add to Thread
-          </button>
-        </div>
+        {/* Extended Options */}
+        {showOptions && (
+          <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border-color)', background: 'var(--card-bg-secondary)', fontSize: '0.9rem' }}>
+             <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Languages</div>
+             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                {LANGUAGES.map(lang => (
+                   <label key={lang.code} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <input type="checkbox" checked={posts[0].languages.includes(lang.code)} onChange={(e) => {
+                          const newPosts = [...posts];
+                          if (e.target.checked) newPosts.forEach(p => { if (!p.languages.includes(lang.code)) p.languages.push(lang.code) });
+                          else newPosts.forEach(p => { p.languages = p.languages.filter(l => l !== lang.code) });
+                          setPosts(newPosts);
+                      }} />
+                      {lang.label}
+                   </label>
+                ))}
+             </div>
+             
+             <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Content Warnings</div>
+             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                {LABELS.map(lbl => (
+                   <label key={lbl.val} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <input type="checkbox" checked={posts[0].labels.includes(lbl.val)} onChange={(e) => {
+                          const newPosts = [...posts];
+                          if (e.target.checked) newPosts.forEach(p => { if (!p.labels.includes(lbl.val)) p.labels.push(lbl.val) });
+                          else newPosts.forEach(p => { p.labels = p.labels.filter(l => l !== lbl.val) });
+                          setPosts(newPosts);
+                      }} />
+                      {lbl.label}
+                   </label>
+                ))}
+             </div>
 
-        {/* Post Options (Shared) */}
-        <div style={{ background: 'var(--card-bg-secondary)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color-light)' }}>
-            {mode === 'schedule' && (
-                <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em', fontWeight: 'bold' }}>Schedule Date:</label>
-                <input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    required
-                    style={{ padding: '5px', borderRadius: '4px', border: '1px solid var(--border-color)', width: '100%', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-color)' }}
-                />
+             <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Advanced</div>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div style={{ display: 'flex', gap: 15 }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)' }}>Who can reply?</span>
+                    {['mention', 'follower', 'following'].map(rule => (
+                      <label key={rule} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <input 
+                          type="checkbox" 
+                          value={rule}
+                          checked={threadgate.includes(rule)}
+                          onChange={(e) => {
+                            if (e.target.checked) setThreadgate([...threadgate, rule]);
+                            else setThreadgate(threadgate.filter(r => r !== rule));
+                          }}
+                        />
+                        {rule.charAt(0).toUpperCase() + rule.slice(1)}s
+                      </label>
+                    ))}
                 </div>
-            )}
-
-            <div>
-              <div style={{ fontSize: '0.9em', fontWeight: 'bold', marginBottom: '5px' }}>Reply Control (Threadgate):</div>
-              <div style={{ display: 'flex', gap: '15px' }}>
-                {['mention', 'follower', 'following'].map(rule => (
-                  <label key={rule} style={{ fontSize: '0.9em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <input 
                       type="checkbox" 
-                      value={rule}
-                      checked={threadgate.includes(rule)}
-                      onChange={(e) => {
-                        if (e.target.checked) setThreadgate([...threadgate, rule]);
-                        else setThreadgate(threadgate.filter(r => r !== rule));
-                      }}
+                      checked={disableQuotes}
+                      onChange={(e) => setDisableQuotes(e.target.checked)}
                     />
-                    {rule.charAt(0).toUpperCase() + rule.slice(1)}s
+                    Disable Quote Posts
                   </label>
-                ))}
-              </div>
-              {threadgate.length === 0 && <small style={{ color: 'var(--text-color-secondary)' }}>Everyone can reply</small>}
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.9em', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
-                <input 
-                  type="checkbox" 
-                  checked={disableQuotes}
-                  onChange={(e) => setDisableQuotes(e.target.checked)}
-                />
-                Disable Quote Posts
-              </label>
-            </div>
-        </div>
-        
-        <button 
-          type="submit" 
-          disabled={status === 'loading'}
-          className="login-btn"
-          style={{ width: '100%', backgroundColor: 'var(--primary-color)', color: '#fff' }}
-        >
-          {status === 'loading' ? 'Processing...' : (mode === 'schedule' ? 'Schedule Post' : 'Post Now')}
-        </button>
+                </div>
+             </div>
+          </div>
+        )}
       </form>
-      {status === 'success' && <p style={{ color: 'var(--success-color)', marginTop: '10px' }}>{mode === 'schedule' ? 'Post scheduled!' : 'Thread posted successfully!'}</p>}
-      {status === 'error' && <p style={{ color: 'var(--error-color)', marginTop: '10px' }}>Error: {errorMsg}</p>}
+      {status === 'success' && <div style={{ padding: '10px 20px', color: 'var(--success-color)' }}>Posted successfully!</div>}
+      {errorMsg && <div style={{ padding: '10px 20px', color: 'var(--error-color)' }}>{errorMsg}</div>}
     </div>
   );
 }
