@@ -1,4 +1,4 @@
-# Bluesky + Chronosky Demo App - AI Assistant Instructions
+# Bluesky Client Demo App - AI Assistant Instructions
 
 このドキュメントは、Bluesky OAuth と Chronosky API を使用したサードパーティアプリケーションの実装に関するガイドです。
 
@@ -95,7 +95,7 @@ VITE_CHRONOSKY_API_URL=https://api.chronosky.app
 // scripts/generate-client-metadata.mjs
 const clientMetadata = {
   client_id: `${APP_URL}/.well-known/client-metadata.json`,
-  client_name: "Bluesky + Chronosky Demo App",
+  client_name: "Bluesky Client Demo App",
   client_uri: APP_URL,
   redirect_uris: [
     `${APP_URL}/oauth/callback`

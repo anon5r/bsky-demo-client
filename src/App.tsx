@@ -153,13 +153,10 @@ function App() {
                     session={bskySession}
                     onPostCreated={() => {
                       setScheduleUpdateTrigger(prev => prev + 1);
-                      // Refresh timeline if needed (PostList handles its own fetch, might need a trigger)
-                      // Ideally we pass a key or a callback to PostList to refresh.
-                      // For now, simple re-mount or relying on internal state updates.
                     }}
                 />
             )}
-            {agent && bskySession && <PostList agent={agent} did={bskySession.sub} />}
+            {agent && bskySession && <PostList agent={agent} did={bskySession.sub} session={bskySession} />}
           </>
         )}
 
@@ -189,7 +186,7 @@ function App() {
              <div style={{ padding: 20 }}>
                 {agent && bskySession && <UserProfile agent={agent} did={bskySession.sub} />}
              </div>
-             {agent && bskySession && <PostList agent={agent} did={bskySession.sub} filter="author" />}
+             {agent && bskySession && <PostList agent={agent} did={bskySession.sub} session={bskySession} filter="author" />}
            </>
         )}
       </main>

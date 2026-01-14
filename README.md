@@ -1,4 +1,4 @@
-# Bluesky + Chronosky Demo App
+# Bluesky Client Demo App
 
 このプロジェクトは、Bluesky の OAuth ログインと Chronosky (スケジュール投稿サービス) の API 連携を実演するデモアプリケーションです。
 

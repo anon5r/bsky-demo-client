@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Agent } from '@atproto/api';
+import { OAuthSession } from '@atproto/oauth-client-browser';
+import { Modal } from './Modal';
+import { PostForm } from './PostForm';
 
 interface PostListProps {
   agent: Agent;
   did: string;
   filter?: 'timeline' | 'author';
+  session: OAuthSession;
 }
 
-export function PostList({ agent, did, filter = 'timeline' }: PostListProps) {
+export function PostList({ agent, did, filter = 'timeline', session }: PostListProps) {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Modal states
+  const [replyPost, setReplyPost] = useState<any>(null);
+  const [quotePost, setQuotePost] = useState<any>(null);
 
   async function loadPosts() {
     setLoading(true);
@@ -104,7 +112,10 @@ export function PostList({ agent, did, filter = 'timeline' }: PostListProps) {
           const isReposted = !!post.viewer?.repost;
           const images = post.embed?.images || (post.embed?.media?.images) || [];
           
-          // Basic elapsed time formatting
+          // Embed Record (Quote) handling
+          const embedRecord = post.embed?.record || post.embed?.media?.record;
+          const isQuote = embedRecord && embedRecord.$type === 'app.bsky.embed.record#view';
+          
           const date = new Date(post.indexedAt);
           const now = new Date();
           const diff = (now.getTime() - date.getTime()) / 1000;
@@ -124,7 +135,8 @@ export function PostList({ agent, did, filter = 'timeline' }: PostListProps) {
               <div className="post-content">
                   {reply && (
                       <div style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)', marginBottom: 4 }}>
-                          Replying to users...
+                          <i className="fa-solid fa-reply" style={{ marginRight: 5 }}></i>
+                          Replying to user...
                       </div>
                   )}
                   
@@ -150,19 +162,38 @@ export function PostList({ agent, did, filter = 'timeline' }: PostListProps) {
                     </div>
                   )}
 
+                  {/* Quoted Post Display */}
+                  {isQuote && embedRecord.record && (
+                     <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, marginTop: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                           <img src={embedRecord.record.author.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
+                           <strong>{embedRecord.record.author.displayName}</strong>
+                           <span style={{ color: 'var(--text-color-secondary)' }}>@{embedRecord.record.author.handle}</span>
+                        </div>
+                        <div>{embedRecord.record.value?.text}</div>
+                     </div>
+                  )}
+
                   <div className="post-actions">
-                    <div className="action-item reply" onClick={() => alert("Reply feature coming soon!")}>
-                       💬 {post.replyCount || 0}
+                    <div className="action-item reply" onClick={(e) => { e.stopPropagation(); setReplyPost(post); }}>
+                       <i className="fa-regular fa-comment"></i> {post.replyCount || 0}
                     </div>
+                    
                     <div className={`action-item repost ${isReposted ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleRepost({ post }); }}>
-                       🔁 {post.repostCount || 0}
+                       <i className="fa-solid fa-retweet"></i> {post.repostCount || 0}
                     </div>
+
+                    <div className="action-item quote" onClick={(e) => { e.stopPropagation(); setQuotePost(post); }}>
+                       <i className="fa-solid fa-quote-left"></i>
+                    </div>
+                    
                     <div className={`action-item like ${isLiked ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); toggleLike({ post }); }}>
-                       {isLiked ? '❤️' : '♡'} {post.likeCount || 0}
+                       <i className={`${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart`}></i> {post.likeCount || 0}
                     </div>
+                    
                     {post.author.did === did && (
                         <div className="action-item" style={{ color: 'var(--error-color)' }} onClick={(e) => { e.stopPropagation(); deletePost(post.uri); }}>
-                            🗑️
+                            <i className="fa-regular fa-trash-can"></i>
                         </div>
                     )}
                   </div>
@@ -170,6 +201,32 @@ export function PostList({ agent, did, filter = 'timeline' }: PostListProps) {
             </div>
           );
         })}
+
+        {/* Reply Modal */}
+        <Modal isOpen={!!replyPost} onClose={() => setReplyPost(null)} title="Reply">
+           {replyPost && (
+               <PostForm 
+                   agent={agent} 
+                   session={session} 
+                   replyTo={replyPost} 
+                   onCancel={() => setReplyPost(null)}
+                   onPostCreated={() => { setReplyPost(null); loadPosts(); }}
+               />
+           )}
+        </Modal>
+
+        {/* Quote Modal */}
+        <Modal isOpen={!!quotePost} onClose={() => setQuotePost(null)} title="Quote Post">
+           {quotePost && (
+               <PostForm 
+                   agent={agent} 
+                   session={session} 
+                   quotePost={quotePost} 
+                   onCancel={() => setQuotePost(null)}
+                   onPostCreated={() => { setQuotePost(null); loadPosts(); }}
+               />
+           )}
+        </Modal>
     </div>
   );
 }

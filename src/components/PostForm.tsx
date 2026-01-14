@@ -9,6 +9,9 @@ interface PostFormProps {
   session: OAuthSession;
   onPostCreated?: () => void;
   defaultMode?: 'now' | 'schedule';
+  replyTo?: any;
+  quotePost?: any;
+  onCancel?: () => void;
 }
 
 interface PostDraft {
@@ -31,7 +34,7 @@ const LANGUAGES = [
   { code: 'en', label: 'English' },
 ];
 
-export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }: PostFormProps) {
+export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', replyTo, quotePost, onCancel }: PostFormProps) {
   const [posts, setPosts] = useState<PostDraft[]>([{ text: '', images: [], labels: [], languages: ['ja'] }]);
   const [scheduledAt, setScheduledAt] = useState('');
   const [threadgate, setThreadgate] = useState<string[]>([]);
@@ -41,7 +44,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }:
   const [mode, setMode] = useState<'now' | 'schedule'>(defaultMode);
   const [showOptions, setShowOptions] = useState(false);
 
-  // Profile data for avatar (optional optimization: pass from parent)
+  // Profile data for avatar
   const [avatar, setAvatar] = useState<string | null>(null);
   React.useEffect(() => {
       agent.getProfile({ actor: session.did }).then(res => setAvatar(res.data.avatar || null)).catch(() => {});
@@ -136,17 +139,51 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }:
         let root: { uri: string; cid: string } | undefined = undefined;
         let parent: { uri: string; cid: string } | undefined = undefined;
         
+        // Handle Reply Context
+        if (replyTo) {
+           // If we are replying to a post that is itself a reply, we need to respect the root.
+           // However, for simplicity here, we take the replyTo post as the parent.
+           // And if replyTo has a reply root, we use that. Otherwise replyTo is the root.
+           const replyRoot = replyTo.record?.reply?.root || { uri: replyTo.uri, cid: replyTo.cid };
+           root = replyRoot;
+           parent = { uri: replyTo.uri, cid: replyTo.cid };
+        }
+
         for (const draft of posts) {
-          if (!draft.text.trim() && draft.images.length === 0) continue;
+          if (!draft.text.trim() && draft.images.length === 0 && !quotePost) continue;
+          
           let embed: any = undefined;
+          let uploadedImages: any[] = [];
+
           if (draft.images.length > 0) {
-             const uploaded = [];
              for (const img of draft.images) {
                 const compressed = await compressImage(img);
                 const { data } = await agent.uploadBlob(compressed, { encoding: compressed.type });
-                uploaded.push({ image: data.blob, alt: "Image" });
+                uploadedImages.push({ image: data.blob, alt: "Image" });
              }
-             embed = { $type: 'app.bsky.embed.images', images: uploaded };
+             embed = { $type: 'app.bsky.embed.images', images: uploadedImages };
+          }
+
+          // Handle Quote Embed
+          if (quotePost && posts.indexOf(draft) === 0) {
+             const quoteEmbed = {
+                $type: 'app.bsky.embed.record',
+                record: {
+                   uri: quotePost.uri,
+                   cid: quotePost.cid
+                }
+             };
+
+             if (embed) {
+                 // Combined: images + record (quote)
+                 embed = {
+                     $type: 'app.bsky.embed.recordWithMedia',
+                     media: embed,
+                     record: quoteEmbed
+                 };
+             } else {
+                 embed = quoteEmbed;
+             }
           }
 
           const record: any = {
@@ -195,6 +232,13 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }:
 
   return (
     <div style={{ borderBottom: '1px solid var(--border-color-dark)', background: 'var(--card-bg)' }}>
+      {/* Reply Context Header */}
+      {replyTo && (
+         <div style={{ padding: '10px 20px', color: 'var(--text-color-secondary)', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)' }}>
+            <i className="fa-solid fa-reply"></i> Replying to <strong>@{replyTo.author?.handle}</strong>
+         </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         {posts.map((draft, index) => (
           <div key={index} className="compose-box" style={{ borderBottom: index < posts.length - 1 ? '1px dashed var(--border-color)' : 'none', paddingBottom: 0 }}>
@@ -203,11 +247,23 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }:
               <textarea
                 value={draft.text}
                 onChange={(e) => updateText(index, e.target.value)}
-                placeholder={index === 0 ? "What's happening?" : "Add to thread..."}
+                placeholder={index === 0 ? (replyTo ? "Post your reply" : "What's happening?") : "Add to thread..."}
                 className="compose-input"
                 style={{ minHeight: '80px', fontSize: '1.1rem' }}
               />
               
+              {/* Quote Preview */}
+              {quotePost && index === 0 && (
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, margin: '10px 0', pointerEvents: 'none', opacity: 0.8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                          <img src={quotePost.author?.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
+                          <strong>{quotePost.author?.displayName}</strong>
+                          <span style={{ color: 'var(--text-color-secondary)' }}>@{quotePost.author?.handle}</span>
+                      </div>
+                      <div>{quotePost.record?.text}</div>
+                  </div>
+              )}
+
               {draft.images.length > 0 && (
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
                       {draft.images.map((img, imgIdx) => (
@@ -228,26 +284,32 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }:
           <div style={{ display: 'flex', gap: 15, alignItems: 'center' }}>
              {/* Image Upload Button */}
              <label style={{ cursor: 'pointer', color: 'var(--primary-color)', fontSize: '1.2rem' }}>
-                📷
+                <i className="fa-regular fa-image"></i>
                 <input type="file" accept="image/*" multiple onChange={(e) => handleImageSelect(posts.length - 1, e)} style={{ display: 'none' }} disabled={posts[posts.length - 1].images.length >= 4} />
              </label>
 
              {/* Mode Switcher */}
-             <label style={{ cursor: 'pointer', color: mode === 'schedule' ? 'var(--primary-color)' : 'var(--text-color-secondary)', fontSize: '1.2rem' }} title="Schedule">
-                ⏳
-                <input type="checkbox" checked={mode === 'schedule'} onChange={(e) => setMode(e.target.checked ? 'schedule' : 'now')} style={{ display: 'none' }} />
-             </label>
+             {!replyTo && !quotePost && (
+                <label style={{ cursor: 'pointer', color: mode === 'schedule' ? 'var(--primary-color)' : 'var(--text-color-secondary)', fontSize: '1.2rem' }} title="Schedule">
+                    <i className="fa-regular fa-clock"></i>
+                    <input type="checkbox" checked={mode === 'schedule'} onChange={(e) => setMode(e.target.checked ? 'schedule' : 'now')} style={{ display: 'none' }} />
+                </label>
+             )}
 
              <button type="button" onClick={addPost} style={{ border: 'none', background: 'none', color: 'var(--primary-color)', fontSize: '1.2rem', cursor: 'pointer' }} title="Add to thread">
-                ➕
+                <i className="fa-solid fa-plus"></i>
              </button>
 
              <button type="button" onClick={() => setShowOptions(!showOptions)} style={{ border: 'none', background: 'none', color: 'var(--text-color-secondary)', fontSize: '1rem', cursor: 'pointer' }}>
-                ⚙️
+                <i className="fa-solid fa-gear"></i>
              </button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+             {onCancel && (
+                 <button type="button" onClick={onCancel} className="btn-ghost" style={{ fontSize: '0.9rem' }}>Cancel</button>
+             )}
+             
              {mode === 'schedule' && (
                  <input 
                     type="datetime-local" 
@@ -257,7 +319,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now' }:
                  />
              )}
              <button type="submit" disabled={status === 'loading'} className="btn" style={{ backgroundColor: 'var(--primary-color)', color: '#fff', borderRadius: 9999, padding: '8px 20px', fontSize: '0.95rem' }}>
-                {status === 'loading' ? 'Posting...' : (mode === 'schedule' ? 'Schedule' : 'Post')}
+                {status === 'loading' ? 'Posting...' : (mode === 'schedule' ? 'Schedule' : (replyTo ? 'Reply' : 'Post'))}
              </button>
           </div>
         </div>
