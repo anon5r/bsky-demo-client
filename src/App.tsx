@@ -74,13 +74,11 @@ function App() {
   async function initAgent(session: OAuthSession) {
     try {
       const tokenInfo = await session.getTokenInfo();
-      const sessionManager = {
-        service: tokenInfo.aud,
-        fetch: (url: string, init?: RequestInit) => session.fetchHandler(url, init),
-        did: session.sub
-      };
       // @ts-ignore
-      const agent = new Agent(sessionManager);
+      const agent = new Agent({
+        service: tokenInfo.aud,
+        fetch: (url, init) => session.fetchHandler(url.toString(), init),
+      });
       (agent as any).session = {
         did: session.sub,
         handle: '',
