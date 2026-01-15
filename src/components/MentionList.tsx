@@ -22,7 +22,10 @@ export const MentionList = forwardRef((props: any, ref) => {
     selectItem(selectedIndex)
   }
 
-  useEffect(() => setSelectedIndex(0), [props.items])
+  useEffect(() => {
+    const timer = setTimeout(() => setSelectedIndex(0), 0)
+    return () => clearTimeout(timer)
+  }, [props.items])
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }: { event: KeyboardEvent }) => {

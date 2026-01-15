@@ -9,21 +9,17 @@ const MAX_HISTORY = 15;
 
 export function LoginView({ onLogin }: LoginViewProps) {
   const [handle, setHandle] = useState('');
-  const [history, setHistory] = useState<string[]>([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  // Load history on mount
-  useEffect(() => {
+  const [history, setHistory] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem(HISTORY_KEY);
-      if (stored) {
-        setHistory(JSON.parse(stored));
-      }
+      return stored ? JSON.parse(stored) : [];
     } catch (e) {
       console.error('Failed to load login history', e);
+      return [];
     }
-  }, []);
+  });
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Handle click outside to close dropdown
   useEffect(() => {

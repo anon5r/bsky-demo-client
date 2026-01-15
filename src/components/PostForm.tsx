@@ -111,7 +111,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
       await rt.detectFacets(agent); // Detect mentions, links, tags
 
       let embed: any = undefined;
-      let uploadedImages: any[] = [];
+      const uploadedImages: any[] = [];
 
       if (images.length > 0) {
          // Upload images

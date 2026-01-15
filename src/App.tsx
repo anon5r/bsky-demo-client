@@ -46,16 +46,27 @@ function App() {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  useEffect(() => {
-    const isCallback = window.location.pathname === '/oauth/callback';
-
-    if (isCallback) {
-      setCurrentView('callback');
-      return;
+  async function initAgent(session: OAuthSession) {
+    try {
+      const tokenInfo = await session.getTokenInfo();
+      const agent = new Agent({
+        service: tokenInfo.aud,
+        // @ts-expect-error fetch signature mismatch
+        fetch: (url: string, init?: RequestInit) => session.fetchHandler(url.toString(), init),
+      });
+      (agent as any).session = {
+        did: session.sub,
+        handle: '',
+        accessJwt: 'dummy',
+        refreshJwt: 'dummy',
+        email: '',
+        emailConfirmed: true,
+      };
+      setAgent(agent);
+    } catch (e) {
+      console.error("Failed to init agent", e);
     }
-
-    checkAuth();
-  }, []);
+  }
 
   async function checkAuth() {
     try {
@@ -71,27 +82,17 @@ function App() {
     }
   }
 
-  async function initAgent(session: OAuthSession) {
-    try {
-      const tokenInfo = await session.getTokenInfo();
-      // @ts-ignore
-      const agent = new Agent({
-        service: tokenInfo.aud,
-        fetch: (url, init) => session.fetchHandler(url.toString(), init),
-      });
-      (agent as any).session = {
-        did: session.sub,
-        handle: '',
-        accessJwt: 'dummy',
-        refreshJwt: 'dummy',
-        email: '',
-        emailConfirmed: true,
-      } as any;
-      setAgent(agent);
-    } catch (e) {
-      console.error("Failed to init agent", e);
+  useEffect(() => {
+    const isCallback = window.location.pathname === '/oauth/callback';
+
+    if (isCallback) {
+      setCurrentView('callback');
+      return;
     }
-  }
+
+    checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLogin(handle: string) {
     const client = await getBlueskyClient();
