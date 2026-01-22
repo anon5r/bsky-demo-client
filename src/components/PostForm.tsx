@@ -209,8 +209,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
 
       } else {
         // Post Now
-        let root: { uri: string; cid: string } | undefined = undefined;
-        let parent: { uri: string; cid: string } | undefined = undefined;
+      let root: { uri: string; cid: string } | undefined = undefined;
         
         if (replyTo) {
            const replyRoot = replyTo.record?.reply?.root || { uri: replyTo.uri, cid: replyTo.cid };
@@ -230,7 +229,12 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                   if (labels.length > 0) {
                     record.labels = { $type: 'com.atproto.label.defs#selfLabels' as const, values: labels.map(val => ({ val })) };
                   }
-        const res: any = await agent.post(record);
+        
+        const res = await agent.com.atproto.repo.createRecord({
+            repo: session.did,
+            collection: 'app.bsky.feed.post',
+            record
+        });
         
         // Threadgate / Postgate logic
         if (!replyTo) { // Only for root posts

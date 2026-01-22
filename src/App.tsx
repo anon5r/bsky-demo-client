@@ -54,14 +54,16 @@ function App() {
         // @ts-expect-error fetch signature mismatch
         fetch: (url: string, init?: RequestInit) => session.fetchHandler(url.toString(), init),
       });
-      (agent as any).session = {
-        did: session.sub,
+        (agent as any).session = {
+        did: tokenInfo.sub,
         handle: '',
         accessJwt: 'dummy',
         refreshJwt: 'dummy',
         email: '',
         emailConfirmed: true,
       };
+      console.log('App: Agent initialized with session:', session);
+      console.log('App: Agent internal session:', (agent as any).session);
       setAgent(agent);
     } catch (e) {
       console.error("Failed to init agent", e);
