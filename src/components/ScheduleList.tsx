@@ -17,6 +17,9 @@ export function ScheduleList({ session }: ScheduleListProps) {
     setLoading(true);
     setErrorMsg('');
     try {
+      const tokenInfo = await session.getTokenInfo();
+      console.log('ScheduleList: Session Token Info:', tokenInfo);
+      
       const response = await client.listPosts({ limit: 50, status: 'pending' });
       setSchedules(response.posts || []);
     } catch (error: any) {

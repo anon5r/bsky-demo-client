@@ -31,6 +31,7 @@ function App() {
   const [dashboardView, setDashboardView] = useState<ViewState>({ type: 'timeline' });
   const [agent, setAgent] = useState<Agent | null>(null);
   const [scheduleUpdateTrigger, setScheduleUpdateTrigger] = useState(0);
+  const [timelineUpdateTrigger, setTimelineUpdateTrigger] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') return saved;
@@ -190,12 +191,13 @@ function App() {
                     agent={agent}
                     session={bskySession}
                     onPostCreated={() => {
-                      setScheduleUpdateTrigger(prev => prev + 1);
+                      setTimelineUpdateTrigger(prev => prev + 1);
                     }}
                 />
             )}
             {agent && bskySession && (
                 <PostList 
+                    key={timelineUpdateTrigger}
                     agent={agent} 
                     did={bskySession.sub} 
                     session={bskySession} 

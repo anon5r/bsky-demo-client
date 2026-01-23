@@ -143,6 +143,10 @@ export class ChronoskyClient {
         ? body 
         : (body ? JSON.stringify(body) : undefined);
 
+    console.log(`ChronoskyClient: Requesting ${method} ${url.toString()}`);
+    // Note: We cannot see headers added by fetchHandler easily as they are added internally.
+    // But we can verify if the fetchHandler itself is working.
+    
     const response = await this.fetchHandler(url.toString(), {
       method: method.toUpperCase(),
       headers: finalHeaders,
@@ -150,7 +154,9 @@ export class ChronoskyClient {
     });
 
     if (!response.ok) {
+      console.error(`ChronoskyClient: Error ${response.status} ${response.statusText}`);
       const errorData = await response.json().catch(() => ({ error: 'UNKNOWN', message: response.statusText }));
+      console.error('ChronoskyClient: Error Details:', errorData);
       const error = new Error(errorData.message || `API Error: ${response.status}`);
       (error as any).error = errorData.error;
       (error as any).status = response.status;
