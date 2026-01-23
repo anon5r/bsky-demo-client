@@ -10,15 +10,18 @@ export function ScheduleList({ session }: ScheduleListProps) {
   const [schedules, setSchedules] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
 
   async function loadSchedules() {
     setLoading(true);
     setErrorMsg('');
+    setDebugInfo('');
     try {
       const tokenInfo = await session.getTokenInfo();
       console.log('ScheduleList: Session Token Info:', tokenInfo);
+      setDebugInfo(`ISS: ${tokenInfo.iss}, AUD: ${tokenInfo.aud}`);
       
       const response = await client.listPosts({ limit: 50, status: 'pending' });
       setSchedules(response.posts || []);
@@ -62,7 +65,10 @@ export function ScheduleList({ session }: ScheduleListProps) {
         <button onClick={loadSchedules} className="btn-ghost" style={{ fontSize: '0.9rem' }}>Refresh</button>
       </div>
       
-      {errorMsg && <div style={{ color: 'var(--error-color)', padding: 20, textAlign: 'center' }}>{errorMsg}</div>}
+      {errorMsg && <div style={{ color: 'var(--error-color)', padding: 20, textAlign: 'center' }}>
+          {errorMsg}
+          {debugInfo && <div style={{ fontSize: '0.8rem', marginTop: 10, color: '#999' }}>Debug: {debugInfo}</div>}
+      </div>}
       
       {(!schedules || schedules.length === 0) && !loading && !errorMsg && 
          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-color-secondary)' }}>

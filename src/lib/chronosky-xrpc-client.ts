@@ -134,7 +134,9 @@ export class ChronoskyClient {
     }
 
     const defaultHeaders: Record<string, string> = {};
-    if (!(body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)) {
+    const hasBody = body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array || body;
+    
+    if (hasBody && !(body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)) {
         defaultHeaders['Content-Type'] = 'application/json';
     }
 
