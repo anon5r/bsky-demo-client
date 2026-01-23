@@ -210,8 +210,10 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
       } else {
         // Post Now
       let root: { uri: string; cid: string } | undefined = undefined;
+      let parent: { uri: string; cid: string } | undefined = undefined;
         
         if (replyTo) {
+           // Type assertion or check if replyTo is valid
            const replyRoot = replyTo.record?.reply?.root || { uri: replyTo.uri, cid: replyTo.cid };
            root = replyRoot;
            parent = { uri: replyTo.uri, cid: replyTo.cid };
@@ -238,7 +240,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
         
         // Threadgate / Postgate logic
         if (!replyTo) { // Only for root posts
-            const rootRef = { uri: res.uri, cid: res.cid };
+            const rootRef = { uri: res.data.uri, cid: res.data.cid };
             if (threadgate.length > 0) {
                 const allow = threadgate.map(rule => ({ $type: `app.bsky.feed.threadgate#${rule}` }));
                 await agent.com.atproto.repo.createRecord({

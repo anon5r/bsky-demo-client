@@ -38,7 +38,12 @@ export function ThreadView({ agent, uri, session, onPostClick }: ThreadViewProps
   async function deletePost(uri: string) {
     if (!confirm("Are you sure you want to delete this post?")) return;
     try {
-       await agent.deletePost(uri);
+       const rkey = uri.split('/').pop();
+       await agent.com.atproto.repo.deleteRecord({
+           repo: session.sub,
+           collection: 'app.bsky.feed.post',
+           rkey: rkey!
+       });
        // If main post deleted, maybe go back? For now just reload
        loadThread();
     } catch (e) { console.error(e); }
@@ -50,9 +55,21 @@ export function ThreadView({ agent, uri, session, onPostClick }: ThreadViewProps
     const likeUri = post.viewer?.like;
     try {
       if (likeUri) {
-        await agent.deleteLike(likeUri);
+        const rkey = likeUri.split('/').pop();
+        await agent.com.atproto.repo.deleteRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.like',
+            rkey: rkey!
+        });
       } else {
-        await agent.like(uri, cid);
+        await agent.com.atproto.repo.createRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.like',
+            record: {
+                subject: { uri, cid },
+                createdAt: new Date().toISOString()
+            }
+        });
       }
       loadThread(); // Refresh thread to show update
     } catch (e) { console.error(e); }
@@ -64,9 +81,21 @@ export function ThreadView({ agent, uri, session, onPostClick }: ThreadViewProps
     const repostUri = post.viewer?.repost;
     try {
       if (repostUri) {
-        await agent.deleteRepost(repostUri);
+        const rkey = repostUri.split('/').pop();
+        await agent.com.atproto.repo.deleteRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.repost',
+            rkey: rkey!
+        });
       } else {
-        await agent.repost(uri, cid);
+        await agent.com.atproto.repo.createRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.repost',
+            record: {
+                subject: { uri, cid },
+                createdAt: new Date().toISOString()
+            }
+        });
       }
       loadThread();
     } catch (e) { console.error(e); }

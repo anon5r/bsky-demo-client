@@ -49,7 +49,13 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
   async function deletePost(uri: string) {
     if (!confirm("Are you sure you want to delete this post?")) return;
     try {
-       await agent.deletePost(uri);
+       // Using low-level deleteRecord to bypass local session check
+       const rkey = uri.split('/').pop();
+       await agent.com.atproto.repo.deleteRecord({
+           repo: session.sub,
+           collection: 'app.bsky.feed.post',
+           rkey: rkey!
+       });
        setPosts(posts.filter(p => p.post.uri !== uri));
     } catch (e) {
         console.error("Failed to delete post", e);
@@ -64,12 +70,24 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
 
     try {
       if (likeUri) {
-        await agent.deleteLike(likeUri);
+        const rkey = likeUri.split('/').pop();
+        await agent.com.atproto.repo.deleteRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.like',
+            rkey: rkey!
+        });
         item.post.viewer.like = undefined;
         item.post.likeCount = (item.post.likeCount || 0) - 1;
       } else {
-        const res = await agent.like(uri, cid);
-        item.post.viewer.like = res.uri;
+        const res = await agent.com.atproto.repo.createRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.like',
+            record: {
+                subject: { uri, cid },
+                createdAt: new Date().toISOString()
+            }
+        });
+        item.post.viewer.like = res.data.uri;
         item.post.likeCount = (item.post.likeCount || 0) + 1;
       }
       setPosts([...posts]);
@@ -85,12 +103,24 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
 
     try {
       if (repostUri) {
-        await agent.deleteRepost(repostUri);
+        const rkey = repostUri.split('/').pop();
+        await agent.com.atproto.repo.deleteRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.repost',
+            rkey: rkey!
+        });
         item.post.viewer.repost = undefined;
         item.post.repostCount = (item.post.repostCount || 0) - 1;
       } else {
-        const res = await agent.repost(uri, cid);
-        item.post.viewer.repost = res.uri;
+        const res = await agent.com.atproto.repo.createRecord({
+            repo: session.sub,
+            collection: 'app.bsky.feed.repost',
+            record: {
+                subject: { uri, cid },
+                createdAt: new Date().toISOString()
+            }
+        });
+        item.post.viewer.repost = res.data.uri;
         item.post.repostCount = (item.post.repostCount || 0) + 1;
       }
       setPosts([...posts]);

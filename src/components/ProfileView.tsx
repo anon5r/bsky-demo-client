@@ -35,17 +35,29 @@ export function ProfileView({ agent, did, session, onViewFollowers, onViewFollow
     if (!profile) return;
     try {
       if (profile.viewer?.following) {
-        await agent.deleteFollow(profile.viewer.following);
+        const rkey = profile.viewer.following.split('/').pop();
+        await agent.com.atproto.repo.deleteRecord({
+            repo: session.sub,
+            collection: 'app.bsky.graph.follow',
+            rkey: rkey!
+        });
         setProfile((prev: any) => ({
            ...prev, 
            viewer: { ...prev.viewer, following: undefined },
            followersCount: (prev.followersCount || 0) - 1
         }));
       } else {
-        const res = await agent.follow(profile.did);
+        const res = await agent.com.atproto.repo.createRecord({
+            repo: session.sub,
+            collection: 'app.bsky.graph.follow',
+            record: {
+                subject: profile.did,
+                createdAt: new Date().toISOString()
+            }
+        });
         setProfile((prev: any) => ({
            ...prev, 
-           viewer: { ...prev.viewer, following: res.uri },
+           viewer: { ...prev.viewer, following: res.data.uri },
            followersCount: (prev.followersCount || 0) + 1
         }));
       }

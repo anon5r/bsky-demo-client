@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { Agent } from '@atproto/api';
 import { UserProfile } from './UserProfile';
 
@@ -11,6 +12,21 @@ interface SidebarProps {
 }
 
 export function Sidebar({ agent, did, currentView, onViewChange, onLogout, onThemeToggle }: SidebarProps) {
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+            setShowMenu(false);
+        }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   return (
     <div className="sidebar">
       <div className="desktop-only" style={{ marginBottom: 20, padding: '10px 20px' }}>
@@ -55,16 +71,41 @@ export function Sidebar({ agent, did, currentView, onViewChange, onLogout, onThe
         </div>
       </nav>
 
-      <div className="desktop-only" style={{ marginTop: 20, borderTop: '1px solid var(--border-color-dark)', paddingTop: 10 }}>
-         <UserProfile agent={agent} did={did} />
-         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 20px', marginTop: 10 }}>
-            <button className="btn-ghost" onClick={onThemeToggle} style={{ fontSize: '0.9rem' }}>
-               <i className="fa-solid fa-moon"></i> Theme
-            </button>
-            <button className="btn-ghost" onClick={onLogout} style={{ color: 'var(--error-color)', fontSize: '0.9rem' }}>
-               <i className="fa-solid fa-right-from-bracket"></i> Logout
-            </button>
+      <div className="desktop-only" style={{ marginTop: 20, borderTop: '1px solid var(--border-color-dark)', paddingTop: 10, position: 'relative' }} ref={menuRef}>
+         <div onClick={() => setShowMenu(!showMenu)} style={{ cursor: 'pointer' }}>
+            <UserProfile agent={agent} did={did} />
          </div>
+         
+         {showMenu && (
+             <div style={{
+                 position: 'absolute',
+                 bottom: '100%',
+                 left: 0,
+                 width: '100%',
+                 background: 'var(--card-bg)',
+                 border: '1px solid var(--border-color)',
+                 borderRadius: 12,
+                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                 padding: 8,
+                 marginBottom: 10,
+                 zIndex: 100
+             }}>
+                <button 
+                    className="btn-ghost" 
+                    onClick={() => { onThemeToggle(); setShowMenu(false); }} 
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', borderRadius: 8, padding: '10px' }}
+                >
+                   <i className="fa-solid fa-moon"></i> Theme
+                </button>
+                <button 
+                    className="btn-ghost" 
+                    onClick={() => { onLogout(); setShowMenu(false); }} 
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', borderRadius: 8, padding: '10px', color: 'var(--error-color)' }}
+                >
+                   <i className="fa-solid fa-right-from-bracket"></i> Logout
+                </button>
+             </div>
+         )}
       </div>
     </div>
   );
