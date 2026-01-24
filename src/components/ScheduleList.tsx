@@ -33,6 +33,8 @@ export function ScheduleList({ session }: ScheduleListProps) {
             To view schedules, you must be registered in Chronosky. <a href="https://chronosky.app" target="_blank" rel="noopener noreferrer">Sign up here</a>.
           </span>
         );
+      } else if (error.error === 'INVALID_TOKEN' || error.message?.includes('verify access token')) {
+        setErrorMsg("Authentication Error: The server rejected your login token. This might be due to a compatibility issue with your PDS provider (e.g., unsupported signature algorithm). Please report this to the Chronosky administrator.");
       } else {
         setErrorMsg(error.message || "Failed to load schedules");
       }
