@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChronoskyClient, type ScheduledPost } from '../lib/chronosky-xrpc-client';
 import { OAuthSession } from '@atproto/oauth-client-browser';
+import { decodeProtectedHeader } from 'jose';
 
 interface ScheduleListProps {
   session: OAuthSession;
@@ -21,7 +22,28 @@ export function ScheduleList({ session }: ScheduleListProps) {
     try {
       const tokenInfo = await session.getTokenInfo();
       console.log('ScheduleList: Session Token Info:', tokenInfo);
-      setDebugInfo(`ISS: ${tokenInfo.iss}, AUD: ${tokenInfo.aud}`);
+      
+      // Decode header to find algorithm
+      let alg = 'unknown';
+      try {
+          // accessJwt is likely available on the session object if we cast it, 
+          // or we can get it from tokenInfo if available (it isn't usually).
+          // However, @atproto/oauth-client-browser session stores it.
+          // Let's try to get it from the internal session state we logged earlier or just use tokenInfo structure if it exposes it? 
+          // Actually session.getTokenInfo() returns info *about* the token, not the raw token string usually.
+          // But session object has `getAccessToken()`? No, it handles fetch.
+          // We can inspect `(session as any).tokenSet.access_token`.
+          const accessToken = (session as any).tokenSet?.access_token;
+          if (accessToken) {
+              const header = decodeProtectedHeader(accessToken);
+              alg = header.alg || 'unknown';
+              console.log('ScheduleList: Token Header:', header);
+          }
+      } catch (e) {
+          console.error("Failed to decode token header", e);
+      }
+
+      setDebugInfo(`ISS: ${tokenInfo.iss}, ALG: ${alg}`);
       
       const response = await client.listPosts({ limit: 50, status: 'pending' });
       setSchedules(response.posts || []);
