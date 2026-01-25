@@ -73,6 +73,25 @@ export interface ScheduledPost {
   updatedAt: string;
   parentPostId?: string;
   threadOrder?: number;
+  facets?: any[];
+  embed?: {
+    $type: string;
+    images?: Array<{
+      alt: string;
+      image: BlobRef;
+    }>;
+    external?: {
+      uri: string;
+      title: string;
+      description: string;
+      thumb?: BlobRef;
+    };
+    record?: {
+      uri: string;
+      cid: string;
+    };
+    [key: string]: any;
+  };
 }
 
 export interface ListSchedulesResponse {

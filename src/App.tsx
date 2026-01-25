@@ -222,6 +222,7 @@ function App() {
                 <ScheduleList 
                     key={scheduleUpdateTrigger}
                     session={bskySession}
+                    agent={agent || undefined}
                 />
              )}
           </>
