@@ -74,6 +74,8 @@ export interface ScheduledPost {
   parentPostId?: string;
   threadOrder?: number;
   facets?: any[];
+  labels?: SelfLabels;
+  disableQuotePosts?: boolean;
   embed?: {
     $type: string;
     images?: Array<{

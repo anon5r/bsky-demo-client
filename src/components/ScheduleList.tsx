@@ -3,7 +3,7 @@ import { ChronoskyClient, type ScheduledPost } from '../lib/chronosky-xrpc-clien
 import { OAuthSession } from '@atproto/oauth-client-browser';
 import { decodeProtectedHeader } from 'jose';
 import { Modal } from './Modal';
-// import { PostForm } from './PostForm';
+import { PostForm } from './PostForm';
 import { Agent } from '@atproto/api';
 
 interface ScheduleListProps {
@@ -19,6 +19,14 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
   const [editingSchedule, setEditingSchedule] = useState<ScheduledPost | null>(null);
 
   const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
+  
+  // Helper to format date for input type="datetime-local" (YYYY-MM-DDThh:mm)
+  function formatForInput(isoString: string) {
+      const date = new Date(isoString);
+      const offset = date.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(date.getTime() - offset)).toISOString().slice(0, 16);
+      return localISOTime;
+  }
 
   async function loadSchedules() {
     setLoading(true);
@@ -78,24 +86,6 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
     }
   }
   
-  // Edit handlers - for now just delete and recreate as update is complex with UI
-  // But wait, PostForm doesn't support "update" mode natively with ID.
-  // We can just pre-fill PostForm and call update API inside it or pass a handler?
-  // PostForm logic is tied to create/schedule.
-  // Let's modify this to use createScheduledPost but maybe we need a dedicated update function or just delete/create?
-  // The prompt asks for "Edit". Usually updatePost is preferred.
-  // Let's assume we can add an "initialState" to PostForm later or just pass logic.
-  // Actually, PostForm creates a new post. To support "Update", we'd need to change PostForm or create a new one.
-  // Simplest: Delete and Schedule New (with pre-filled data). 
-  // BUT the API has updatePost. Let's try to support it properly if possible, 
-  // or for MVP, just pre-fill a new one and delete old one on save? No, that changes ID.
-  // Let's just create a wrapper around PostForm? 
-  // Wait, PostForm is complex.
-  // Let's pass "initialData" to PostForm and handle "onSubmit" differently if needed?
-  // Or just extend PostForm to support `mode="edit"` and `postId`.
-  
-  // For now, let's just implement the UI parts requested: Previews and Edit Button check.
-
   const isEditable = (scheduledAt: string) => {
       const diff = new Date(scheduledAt).getTime() - Date.now();
       return diff > 5 * 60 * 1000; // > 5 mins
@@ -157,13 +147,6 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                                      fontSize: '0.8rem', color: '#888'
                                  }}>
-                                    {/* Since we don't have the full blob URL easily without CDN, just show placeholder or type */}
-                                    {/* Actual images need blob fetching or caching, which is complex for scheduled posts if not public yet. 
-                                        Wait, if they are blobs, they are on PDS. We can try to render them if we have a way.
-                                        But typically for drafts, we might not have a public URL. 
-                                        Let's just show an icon/text for now as requested "preview". 
-                                        If we have access to CDN or similar, we can use it.
-                                        For now: Placeholder */}
                                     📷 Image
                                  </div>
                              ))}
@@ -219,14 +202,29 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
 
       {agent && editingSchedule && (
           <Modal isOpen={true} onClose={() => setEditingSchedule(null)} title="Edit Schedule">
-             <div style={{ padding: 20 }}>
-                {/* Temporary placeholder for edit functionality */}
-                <p>Editing is not fully implemented yet, but you can see the data:</p>
-                <pre style={{ background: '#f5f5f5', padding: 10, borderRadius: 4, overflow: 'auto' }}>
-                    {JSON.stringify(editingSchedule, null, 2)}
-                </pre>
-                <button onClick={() => setEditingSchedule(null)} className="btn btn-secondary">Close</button>
-             </div>
+             <PostForm 
+                 agent={agent}
+                 session={session}
+                 defaultMode="schedule"
+                 postId={editingSchedule.id}
+                 initialData={{
+                     text: editingSchedule.text,
+                     scheduledAt: formatForInput(editingSchedule.scheduledAt),
+                     images: (editingSchedule.embed?.$type === 'app.bsky.embed.images') ? editingSchedule.embed.images : [],
+                     langs: editingSchedule.langs,
+                     // labels: editingSchedule.labels?.values // SelfLabels structure is complex, simplified in client?
+                     // Let's assume labels are compatible or just empty for now.
+                     // The client interface has labels?: SelfLabels. PostForm expects string[].
+                     labels: editingSchedule.labels?.values?.map((v: { val: string }) => v.val) || [],
+                     disableQuotes: editingSchedule.disableQuotePosts // interface mismatch? ScheduledPost vs CreateScheduleRequest
+                     // Check ScheduledPost definition again. It has disableQuotePosts?: boolean
+                 }}
+                 onCancel={() => setEditingSchedule(null)}
+                 onPostCreated={() => {
+                     setEditingSchedule(null);
+                     loadSchedules();
+                 }}
+             />
           </Modal>
       )}
     </div>
