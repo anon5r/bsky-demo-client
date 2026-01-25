@@ -71,7 +71,7 @@ export function Sidebar({ agent, did, currentView, onViewChange, onLogout, onThe
         </div>
       </nav>
 
-      <div className="desktop-only" style={{ marginTop: 20, borderTop: '1px solid var(--border-color-dark)', paddingTop: 10, position: 'relative' }} ref={menuRef}>
+      <div className="desktop-only" style={{ borderTop: '1px solid var(--border-color-dark)', paddingTop: 10, position: 'relative' }} ref={menuRef}>
          <div onClick={() => setShowMenu(!showMenu)} style={{ cursor: 'pointer' }}>
             <UserProfile agent={agent} did={did} />
          </div>
