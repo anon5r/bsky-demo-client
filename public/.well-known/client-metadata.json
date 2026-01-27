@@ -6,7 +6,7 @@
     "http://localhost:5173/oauth/callback",
     "http://localhost:5173/oauth/chronosky/callback"
   ],
-  "scope": "atproto transition:generic",
+  "scope": "atproto transition:generic app.chronosky.authClient",
   "grant_types": [
     "authorization_code",
     "refresh_token"

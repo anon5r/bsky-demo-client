@@ -22,7 +22,7 @@ const clientMetadata = {
     `${appUrl}/oauth/callback`,
     `${appUrl}/oauth/chronosky/callback`
   ],
-  scope: "atproto transition:generic",
+  scope: "atproto transition:generic include:app.chronosky.authClient",
   grant_types: ["authorization_code", "refresh_token"],
   response_types: ["code"],
   response_mode: "query",
