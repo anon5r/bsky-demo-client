@@ -65,6 +65,7 @@ export interface ListSchedulesRequest {
 
 export interface ScheduledPost {
   id: string;
+  userId: string;
   text: string;
   langs?: string[];
   scheduledAt: string;
