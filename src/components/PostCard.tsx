@@ -100,49 +100,47 @@ export function PostCard({ post, reply, reason, currentDid, onReply, onQuote, on
       onClick={() => onClick && onClick(post)} 
       style={{ cursor: onClick ? 'pointer' : 'default', backgroundColor: isMain ? 'var(--card-bg-hover)' : undefined }}
     >
-      {/* Repost / Reply Header context */}
-      {(repostedBy || reply) && (
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-           {repostedBy && (
-               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <i className="fa-solid fa-retweet"></i>
-                  Reposted by <strong>{repostedBy.displayName || repostedBy.handle}</strong>
-               </span>
-           )}
-           
-           {repostedBy && reply && <span>&gt;</span>}
+      <img 
+        src={post.author.avatar || 'https://via.placeholder.com/48'} 
+        alt={post.author.handle} 
+        className="avatar"
+        style={{ width: isMain ? 56 : 48, height: isMain ? 56 : 48 }}
+        onClick={(e) => { e.stopPropagation(); /* Go to profile? */ }}
+      />
+      
+      <div className="post-content" style={{ flex: 1 }}>
+          {/* Repost / Reply Header context */}
+          {(repostedBy || reply) && (
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+               {repostedBy && (
+                   <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <i className="fa-solid fa-retweet"></i>
+                      Reposted by <strong>{repostedBy.displayName || repostedBy.handle}</strong>
+                   </span>
+               )}
+               
+               {repostedBy && reply && <span>&gt;</span>}
 
-           {reply && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <i className="fa-solid fa-reply"></i>
-                  Replying to @{reply.parent?.author?.handle || 'user'}
-              </span>
-           )}
-        </div>
-      )}
+               {reply && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <i className="fa-solid fa-reply"></i>
+                      Replying to @{reply.parent?.author?.handle || 'user'}
+                  </span>
+               )}
+            </div>
+          )}
 
-      <div style={{ display: 'flex', gap: 10 }}>
-        <img 
-            src={post.author.avatar || 'https://via.placeholder.com/48'} 
-            alt={post.author.handle} 
-            className="avatar"
-            style={{ width: isMain ? 56 : 48, height: isMain ? 56 : 48 }}
-            onClick={(e) => { e.stopPropagation(); /* Go to profile? */ }}
-        />
-        
-        <div className="post-content" style={{ flex: 1 }}>
-            
-            <div className="post-header" style={{ flexDirection: isMain ? 'column' : 'row', alignItems: isMain ? 'flex-start' : 'center' }}>
+          <div className="post-header" style={{ flexDirection: isMain ? 'column' : 'row', alignItems: isMain ? 'flex-start' : 'center' }}>
                 <div style={{ display: 'flex', flexDirection: isMain ? 'column' : 'row', gap: isMain ? 0 : 5 }}>
                     <span className="display-name" style={{ fontSize: isMain ? '1.1rem' : undefined }}>{post.author.displayName || post.author.handle}</span>
                     <span className="handle">@{post.author.handle}</span>
                 </div>
                 <span className="timestamp">· {timeString}</span>
-            </div>
+          </div>
 
-            <div style={{ fontSize: isMain ? '1.2rem' : undefined, lineHeight: isMain ? 1.5 : undefined }}>
+          <div style={{ fontSize: isMain ? '1.2rem' : undefined, lineHeight: isMain ? 1.5 : undefined }}>
                <RichTextDisplay text={post.record.text} facets={post.record.facets} />
-            </div>
+          </div>
 
             {images.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(images.length, 2)}, 1fr)`, gap: 4, marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
@@ -197,7 +195,6 @@ export function PostCard({ post, reply, reason, currentDid, onReply, onQuote, on
                 )}
             </div>
         </div>
-      </div>
     </div>
   );
 }
