@@ -4,9 +4,10 @@ import { OAuthSession } from '@atproto/oauth-client-browser';
 
 interface OAuthCallbackProps {
   onSuccess: (session?: OAuthSession) => void;
+  onError: (err: unknown) => void;
 }
 
-export function OAuthCallback({ onSuccess }: OAuthCallbackProps) {
+export function OAuthCallback({ onSuccess, onError }: OAuthCallbackProps) {
   async function handleCallback() {
     try {
       const client = await getBlueskyClient();
@@ -15,6 +16,7 @@ export function OAuthCallback({ onSuccess }: OAuthCallbackProps) {
       onSuccess(result.session);
     } catch (err) {
       console.error("Bluesky sign-in callback failed", err);
+      onError(err);
     }
   }
 

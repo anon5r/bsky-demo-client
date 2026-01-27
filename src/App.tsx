@@ -134,6 +134,12 @@ function App() {
       setCurrentView('dashboard');
   }
 
+  function handleOAuthError(err: unknown) {
+      console.error("OAuth error:", err);
+      // alert("Login failed or cancelled."); // Optional: show error
+      setCurrentView('login');
+  }
+
   const handleViewChange = (type: any) => {
       // Sidebar mostly passes strings, except if we want args
       if (type === 'profile') {
@@ -152,7 +158,7 @@ function App() {
   };
 
   if (currentView === 'callback') {
-      return <OAuthCallback onSuccess={handleOAuthSuccess} />;
+      return <OAuthCallback onSuccess={handleOAuthSuccess} onError={handleOAuthError} />;
   }
 
   if (!bskySession || currentView === 'login') {
