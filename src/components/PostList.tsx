@@ -144,6 +144,7 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
                key={item.post.uri}
                post={item.post}
                reply={item.reply}
+               reason={item.reason}
                currentDid={session.sub}
                onReply={() => setReplyPost(item.post)}
                onQuote={() => setQuotePost(item.post)}

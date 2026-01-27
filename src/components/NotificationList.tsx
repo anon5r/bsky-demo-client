@@ -82,7 +82,16 @@ export function NotificationList({ agent }: NotificationListProps) {
                    </span>
                 </div>
                 {(notif.reason === 'reply' || notif.reason === 'quote' || notif.reason === 'mention') && notif.record.text && (
-                   <div className="post-text" style={{ color: 'var(--text-color-secondary)' }}>{notif.record.text}</div>
+                   <div className="post-text" style={{ 
+                       color: 'var(--text-color)', 
+                       marginTop: 5, 
+                       padding: '8px 12px', 
+                       backgroundColor: 'var(--card-bg-secondary)', 
+                       borderRadius: 8,
+                       borderLeft: '4px solid var(--border-color)'
+                   }}>
+                       {notif.record.text}
+                   </div>
                 )}
              </div>
           </div>
