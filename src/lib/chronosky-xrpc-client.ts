@@ -44,7 +44,7 @@ export interface CreateScheduleRequest {
   text?: string; // Simple single post content
   posts?: ThreadPostItem[];
   scheduledAt: string;
-  parentPostRecordKey?: string;
+  parentPostId?: string;
   threadgateRules?: Array<'mention' | 'follower' | 'following'>;
   disableQuotePosts?: boolean;
 }
