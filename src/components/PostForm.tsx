@@ -213,6 +213,14 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
 
         if (!scheduledAt) throw new Error("Please select a date/time.");
 
+        // Calculate reply ref if replyTo exists
+        let replyRef: any = undefined;
+        if (replyTo) {
+             const root = replyTo.record?.reply?.root || { uri: replyTo.uri, cid: replyTo.cid };
+             const parent = { uri: replyTo.uri, cid: replyTo.cid };
+             replyRef = { root, parent };
+        }
+
         if (postId) {
             // Update existing scheduled post
             await client.updatePost({
@@ -270,6 +278,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                     embed: scheduleEmbed,
                     labels: formattedLabels,
                     langs: languages.length > 0 ? languages : undefined,
+                    reply: replyRef
                  }],
                  scheduledAt: new Date(scheduledAt).toISOString(),
                  threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,
@@ -285,6 +294,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                 embed: scheduleEmbed,
                 labels: formattedLabels,
                 langs: languages.length > 0 ? languages : undefined,
+                reply: replyRef
               }],
               scheduledAt: new Date(scheduledAt).toISOString(),
               threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,

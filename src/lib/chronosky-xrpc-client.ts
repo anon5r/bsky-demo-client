@@ -29,6 +29,10 @@ export interface ThreadPostItem {
   langs?: string[];
   facets?: any[];
   labels?: SelfLabels;
+  reply?: {
+      root: { uri: string; cid: string };
+      parent: { uri: string; cid: string };
+  };
   embed?: {
     $type: string;
     images?: Array<{
@@ -37,6 +41,7 @@ export interface ThreadPostItem {
     }>;
     [key: string]: any;
   };
+  [key: string]: any;
 }
 
 // Type definitions based on the NEW guide
