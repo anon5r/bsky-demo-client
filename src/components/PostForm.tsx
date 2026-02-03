@@ -225,66 +225,18 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
             // Update existing scheduled post
             await client.updatePost({
                 id: postId,
-                text: rt.text,
-                facets: rt.facets,
-                embed: scheduleEmbed, // This might overwrite, so we need full embed structure
-                // labels: formattedLabels, // updatePost might not support labels update directly in top level if struct differs? check API guide.
-                // Guide says: posts: [{ text, langs, facets, embed, labels }]
-                // So we wrap in posts array just like create.
-                // Wait, updatePost request body: { postId, posts: [...], scheduledAt... }
-                // So we construct it similarly.
-                // Actually client.updatePost takes UpdateScheduleRequest which has { id, text... } flattened?
-                // Let's check ChronoskyClient definition.
-                // It defines: id, text, scheduledAt, langs, facets, embed. It seems simpler than createPost which takes `posts` array.
-                // NOTE: The API reference says updatePost takes `posts` array in body! 
-                // The client wrapper `updatePost` in `chronosky-xrpc-client.ts` seems to map to flattened fields? 
-                // Let's check client implementation: `return this.request('POST', 'app.chronosky.schedule.updatePost', input);`
-                // Input is `UpdateScheduleRequest`.
-                // If the API expects `posts` array, the client interface might be wrong or the API supports both?
-                // The docs say: `posts?: Array<{ text... }>` for updatePost.
-                // So we should strictly follow the doc. 
-                // Let's use the raw structure if client wrapper is simple passthrough.
-                // Re-reading client: `interface UpdateScheduleRequest { id: string; text?: string... }`
-                // This looks like it sends `text` at top level. If API expects `posts` array, this will fail.
-                // I should probably fix the client interface to match API docs or pass `posts` array.
-                // Let's assume for now I should pass `posts` array inside the "input" if I can, but the interface blocks it.
-                // I will update the client interface in next step if needed. 
-                // For now, let's construct what seems to be the intention of the Client wrapper or bypass it?
-                // Let's trust the Client wrapper if it was built to abstract this, 
-                // OR if I built it, I know I might have simplified it too much.
-                // Given I wrote `chronosky-xrpc-client.ts`, let's verify.
-                // It has `UpdateScheduleRequest` with flattened fields.
-                // But the doc says `app.chronosky.schedule.updatePost` takes `posts`.
-                // So I should fix the client to send `posts`.
-                // OR maybe I just send `posts` as `any` to bypass TS for now?
-                // Let's try to send correct structure matching createPost.
+                posts: [{
+                   text: rt.text,
+                   facets: rt.facets,
+                   embed: scheduleEmbed,
+                   labels: formattedLabels,
+                   langs: languages.length > 0 ? languages : undefined,
+                   reply: replyRef
+                }],
+                scheduledAt: new Date(scheduledAt).toISOString(),
+                threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,
+                disableQuotePosts: disableQuotes
             });
-             
-             // Wait, let's look at `createPost` in client. It takes `CreateScheduleRequest`.
-             // `createPost` in doc takes `posts` array.
-             // My client `createPost` takes `CreateScheduleRequest` which I defined.
-             // In previous steps I might have defined it with `posts`.
-             // Yes, `CreateScheduleRequest` has `posts`.
-             // But `UpdateScheduleRequest` has `text` etc.
-             // I should fix `UpdateScheduleRequest` to match `CreateScheduleRequest` structure (posts array).
-             // But for this file, let's assume I will fix the client type.
-             // For now, I will send the object that matches the API doc:
-             await client.updatePost({
-                 id: postId,
-                 // @ts-ignore
-                 posts: [{
-                    text: rt.text,
-                    facets: rt.facets,
-                    embed: scheduleEmbed,
-                    labels: formattedLabels,
-                    langs: languages.length > 0 ? languages : undefined,
-                    reply: replyRef
-                 }],
-                 scheduledAt: new Date(scheduledAt).toISOString(),
-                 threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,
-                 disableQuotePosts: disableQuotes
-             });
-             
         } else {
             // Create new
             await client.createPost({

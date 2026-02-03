@@ -114,11 +114,10 @@ export interface ListSchedulesResponse {
 
 export interface UpdateScheduleRequest {
   id: string;
-  text?: string;
+  posts?: ThreadPostItem[];
   scheduledAt?: string;
-  langs?: string[];
-  facets?: any[];
-  embed?: any;
+  threadgateRules?: Array<'mention' | 'follower' | 'following'>;
+  disableQuotePosts?: boolean;
 }
 
 export interface UpdateScheduleResponse {
