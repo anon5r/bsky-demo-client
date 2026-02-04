@@ -1,26 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface LoginViewProps {
   onLogin: (handle: string) => void;
 }
 
+const HISTORY_KEY = 'bsky_login_history';
+
 export function LoginView({ onLogin }: LoginViewProps) {
   const [handle, setHandle] = useState('');
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(HISTORY_KEY);
+    if (stored) {
+      try {
+        setHistory(JSON.parse(stored));
+      } catch (e) {
+        console.error("Failed to parse login history", e);
+      }
+    }
+  }, []);
+
+  const saveToHistory = (newHandle: string) => {
+    const newHistory = [newHandle, ...history.filter(h => h !== newHandle)].slice(0, 5);
+    setHistory(newHistory);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
+  };
+
+  const removeFromHistory = (e: React.MouseEvent, target: string) => {
+    e.stopPropagation();
+    const newHistory = history.filter(h => h !== target);
+    setHistory(newHistory);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
+  };
+
+  const executeLogin = async (loginHandle: string) => {
+    if (!loginHandle) return;
+    setLoading(true);
+    
+    let cleanHandle = loginHandle.replace('@', '').trim();
+    if (!cleanHandle.includes('.')) {
+        cleanHandle += '.bsky.social';
+    }
+    
+    saveToHistory(cleanHandle);
+    await onLogin(cleanHandle);
+    setLoading(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!handle) return;
-    
-    setLoading(true);
-    // Basic normalization of handle
-    let cleanHandle = handle.replace('@', '').trim();
-    if (!cleanHandle.includes('.')) {
-        cleanHandle += '.bsky.social'; // Default domain convenience
-    }
-    
-    await onLogin(cleanHandle);
-    setLoading(false);
+    await executeLogin(handle);
   };
 
   return (
@@ -51,6 +82,46 @@ export function LoginView({ onLogin }: LoginViewProps) {
               {loading ? 'Connecting...' : 'Next'}
             </button>
           </form>
+
+          {history.length > 0 && (
+            <div style={{ marginTop: 30, textAlign: 'left' }}>
+              <div style={{ fontSize: '0.9rem', color: 'var(--text-color-secondary)', marginBottom: 10, fontWeight: 600 }}>Recent logins</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {history.map(h => (
+                  <div 
+                    key={h} 
+                    onClick={() => executeLogin(h)}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between',
+                      padding: '10px 16px', 
+                      background: 'var(--card-bg-hover)', 
+                      borderRadius: 12, 
+                      cursor: 'pointer',
+                      border: '1px solid var(--border-color)',
+                      transition: 'background-color 0.2s'
+                    }}
+                    className="history-item"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--border-color-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-color-secondary)' }}>
+                            <i className="fa-solid fa-user"></i>
+                        </div>
+                        <span style={{ fontWeight: 500 }}>{h}</span>
+                    </div>
+                    <button 
+                      onClick={(e) => removeFromHistory(e, h)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-color-secondary)', cursor: 'pointer', padding: 4 }}
+                      title="Remove"
+                    >
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 24, fontSize: '0.9rem', color: 'var(--text-color-secondary)' }}>
              Don't have an account? <a href="https://bsky.app" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>Sign up</a>
