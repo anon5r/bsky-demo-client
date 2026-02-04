@@ -16,7 +16,7 @@ console.log(`Generating client metadata for: ${appUrl}`);
 
 const clientMetadata = {
   client_id: `${appUrl}/.well-known/client-metadata.json`,
-  client_name: "Third-Party Demo App",
+  client_name: "Bluesky Client Demo App",
   client_uri: appUrl,
   redirect_uris: [
     `${appUrl}/oauth/callback`,
