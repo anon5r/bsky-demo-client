@@ -15,6 +15,7 @@ import { Layout } from './components/Layout';
 import { Modal } from './components/Modal';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
+import { OAUTH_SCOPE } from './lib/auth-config';
 
 type ViewState = 
   | { type: 'timeline' }
@@ -102,8 +103,9 @@ function App() {
     try {
           await client.signIn(handle, {
             state: crypto.randomUUID(),
-            scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app blob:image/* blob:video/*",
-          });    } catch (e) {
+            scope: OAUTH_SCOPE,
+          });
+    } catch (e) {
       console.error("Login failed", e);
       alert("Login failed: " + e);
     }
