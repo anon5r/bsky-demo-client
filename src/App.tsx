@@ -49,7 +49,16 @@ function App() {
 
   async function initAgent(session: OAuthSession) {
     try {
+      console.log('App: Full Session Object:', session);
+      // @ts-ignore
+      if (session.tokenSet) {
+         // @ts-ignore
+         console.log('App: TokenSet:', session.tokenSet);
+      }
+      
       const tokenInfo = await session.getTokenInfo();
+      console.log('App: Token Info (Default):', tokenInfo);
+
       const agent = new Agent({
         service: tokenInfo.aud,
         // @ts-expect-error fetch signature mismatch
@@ -63,8 +72,6 @@ function App() {
         email: '',
         emailConfirmed: true,
       };
-      console.log('App: Agent initialized with session:', session);
-      console.log('App: Agent internal session:', (agent as any).session);
       setAgent(agent);
     } catch (e) {
       console.error("Failed to init agent", e);
@@ -100,11 +107,11 @@ function App() {
   async function handleLogin(handle: string) {
     const client = await getBlueskyClient();
     try {
-      await client.signIn(handle, {
-        state: crypto.randomUUID(),
-        prompt: 'login',
-      });
-    } catch (e) {
+          await client.signIn(handle, {
+            state: crypto.randomUUID(),
+            prompt: 'login',
+            scope: "atproto include:app.bsky.authFullApp?aud=%2A include:app.chronosky.authClient?aud=did:web:api.chronosky.app",
+          });    } catch (e) {
       console.error("Login failed", e);
       alert("Login failed: " + e);
     }
