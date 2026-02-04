@@ -15,7 +15,7 @@ if (!appUrl) {
 console.log(`Generating client metadata for: ${appUrl}`);
 
 const clientMetadata = {
-  client_id: `${appUrl}/.well-known/client-metadata.json`,
+  client_id: `${appUrl}/.well-known/client-metadata.json?v=2`,
   client_name: "Bluesky Client Demo App",
   client_uri: appUrl,
   redirect_uris: [
