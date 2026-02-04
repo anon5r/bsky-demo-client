@@ -13,7 +13,7 @@ export default function handler(request, response) {
     redirect_uris: [
       `${origin}/oauth/callback`
     ],
-    scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app",
+    scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app blob:image/* blob:video/*",
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     response_mode: "query",
