@@ -102,7 +102,7 @@ function App() {
     try {
           await client.signIn(handle, {
             state: crypto.randomUUID(),
-            scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app",
+            scope: "atproto include:app.bsky.authFullApp?aud=did%3Aweb%3Aapi.bsky.app%23bsky_appview include:app.chronosky.authClient?aud=did%3Aweb%3Aapi.chronosky.app blob:image/* blob:video/*",
           });    } catch (e) {
       console.error("Login failed", e);
       alert("Login failed: " + e);
