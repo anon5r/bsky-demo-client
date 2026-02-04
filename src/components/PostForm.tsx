@@ -50,6 +50,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
   const [languages, setLanguages] = useState<string[]>(initialData?.langs || ['ja']);
   const [scheduledAt, setScheduledAt] = useState(initialData?.scheduledAt || '');
   const [threadgate, setThreadgate] = useState<string[]>(initialData?.threadgate || []);
+  // @ts-ignore
   const [disableQuotes, setDisableQuotes] = useState(initialData?.disableQuotes || false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
@@ -128,20 +129,13 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
       let embed: any = undefined;
       const uploadedImages: any[] = [];
 
-      // Combine existing and new images for embed construction
-      // Note: for 'Post Now', existingImages (blobs) are tricky if they are from a scheduled post context (Chronosky managed).
-      // However, if we are in 'schedule' mode (updating), we can reuse them.
-      // If we are switching from schedule to 'now', we might need to re-upload or ensure blobs are accessible.
-      // For simplicity, we assume 'edit' is only for 'schedule' mode or keeping same mode.
-
       if (images.length > 0 || existingImages.length > 0) {
          if (mode === 'schedule') {
              // Handled below
          } else {
              // Normal post
-             // Add existing images first (if valid BlobRefs)
              for (const img of existingImages) {
-                 uploadedImages.push(img); // Assume img structure is compatible { image: blobRef, alt: ... }
+                 uploadedImages.push(img);
              }
 
              for (const img of images) {
@@ -213,7 +207,6 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
 
         if (!scheduledAt) throw new Error("Please select a date/time.");
 
-        // Calculate reply ref if replyTo exists
         let replyRef: any = undefined;
         if (replyTo) {
              const root = replyTo.record?.reply?.root || { uri: replyTo.uri, cid: replyTo.cid };
@@ -256,11 +249,10 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
 
       } else {
         // Post Now
-      let root: { uri: string; cid: string } | undefined = undefined;
-      let parent: { uri: string; cid: string } | undefined = undefined;
+        let root: { uri: string; cid: string } | undefined = undefined;
+        let parent: { uri: string; cid: string } | undefined = undefined;
         
         if (replyTo) {
-           // Type assertion or check if replyTo is valid
            const replyRoot = replyTo.record?.reply?.root || { uri: replyTo.uri, cid: replyTo.cid };
            root = replyRoot;
            parent = { uri: replyTo.uri, cid: replyTo.cid };
@@ -275,9 +267,9 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
             langs: languages.length > 0 ? languages : undefined,
         };
 
-                  if (labels.length > 0) {
-                    record.labels = { $type: 'com.atproto.label.defs#selfLabels' as const, values: labels.map(val => ({ val })) };
-                  }
+        if (labels.length > 0) {
+           record.labels = { $type: 'com.atproto.label.defs#selfLabels' as const, values: labels.map(val => ({ val })) };
+        }
         
         const res = await agent.com.atproto.repo.createRecord({
             repo: session.did,
@@ -285,8 +277,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
             record
         });
         
-        // Threadgate / Postgate logic
-        if (!replyTo) { // Only for root posts
+        if (!replyTo) {
             const rootRef = { uri: res.data.uri, cid: res.data.cid };
             if (threadgate.length > 0) {
                 const allow = threadgate.map(rule => ({ $type: `app.bsky.feed.threadgate#${rule}` }));
@@ -319,157 +310,153 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
   }
 
   return (
-    <div style={{ borderBottom: '1px solid var(--border-color-dark)', background: 'var(--card-bg)' }}>
+    <div style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border-color)' }}>
       {replyTo && (
-         <div style={{ padding: '10px 20px', color: 'var(--text-color-secondary)', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)' }}>
+         <div style={{ padding: '8px 16px', color: 'var(--text-color-secondary)', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)' }}>
             <i className="fa-solid fa-reply"></i> Replying to <strong>@{replyTo.author?.handle}</strong>
          </div>
       )}
 
       <form onSubmit={handleSubmit}>
-          <div className="compose-box" style={{ flexDirection: 'column' }}>
-            <div style={{ display: 'flex', gap: 12 }}>
-                <img src={avatar || 'https://via.placeholder.com/48'} className="avatar" alt="Me" style={{ width: 40, height: 40 }} />
-                <div style={{ flex: 1, border: '1px solid transparent' }}>
-                    <EditorContent editor={editor} />
-                </div>
-            </div>
+          <div className="compose-wrapper">
+            <img src={avatar || 'https://via.placeholder.com/48'} className="avatar" alt="Me" style={{ width: 40, height: 40 }} />
             
-            {/* Image Previews */}
-            {(images.length > 0 || existingImages.length > 0) && (
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10, paddingLeft: 52 }}>
-                    {existingImages.map((_, imgIdx) => (
-                        <div key={`existing-${imgIdx}`} style={{ position: 'relative', height: 80, width: 80 }}>
-                            <div style={{ width: '100%', height: '100%', background: '#eee', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#666' }}>
-                               Existing
+            <div className="compose-content">
+                <EditorContent editor={editor} />
+                
+                {/* Image Previews */}
+                {(images.length > 0 || existingImages.length > 0) && (
+                    <div className="image-preview-grid">
+                        {existingImages.map((_, imgIdx) => (
+                            <div key={`existing-${imgIdx}`} className="image-preview-item">
+                                <div style={{ width: '100%', height: '100%', background: '#eee', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#666' }}>
+                                   Existing
+                                </div>
+                                <button type="button" onClick={() => removeExistingImage(imgIdx)} className="remove-image-btn">
+                                  <i className="fa-solid fa-xmark"></i>
+                                </button>
                             </div>
-                            <button type="button" onClick={() => removeExistingImage(imgIdx)} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                        </div>
-                    ))}
-                    {images.map((img, imgIdx) => (
-                        <div key={`new-${imgIdx}`} style={{ position: 'relative', height: 80, width: 80 }}>
-                            <img src={URL.createObjectURL(img)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
-                            <button type="button" onClick={() => removeImage(imgIdx)} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Quote Preview */}
-            {quotePost && (
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, margin: '10px 0 0 52px', pointerEvents: 'none', opacity: 0.8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
-                        <img src={quotePost.author?.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
-                        <strong>{quotePost.author?.displayName}</strong>
-                        <span style={{ color: 'var(--text-color-secondary)' }}>@{quotePost.author?.handle}</span>
+                        ))}
+                        {images.map((img, imgIdx) => (
+                            <div key={`new-${imgIdx}`} className="image-preview-item">
+                                <img src={URL.createObjectURL(img)} />
+                                <button type="button" onClick={() => removeImage(imgIdx)} className="remove-image-btn">
+                                  <i className="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        ))}
                     </div>
-                    <div>{quotePost.record?.text}</div>
+                )}
+
+                {/* Quote Preview */}
+                {quotePost && (
+                    <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, margin: '10px 0', pointerEvents: 'none', opacity: 0.8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                            <img src={quotePost.author?.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
+                            <strong>{quotePost.author?.displayName}</strong>
+                            <span style={{ color: 'var(--text-color-secondary)' }}>@{quotePost.author?.handle}</span>
+                        </div>
+                        <div>{quotePost.record?.text}</div>
+                    </div>
+                )}
+
+                <div className="compose-footer">
+                   <div className="compose-tools">
+                        <label className="tool-btn" title="Media">
+                            <i className="fa-regular fa-image"></i>
+                            <input type="file" accept="image/*" multiple onChange={handleImageSelect} style={{ display: 'none' }} disabled={images.length + existingImages.length >= 4} />
+                        </label>
+
+                        {!replyTo && !quotePost && !postId && (
+                            <label className="tool-btn" style={{ color: mode === 'schedule' ? 'var(--primary-color)' : 'var(--primary-color)' }} title="Schedule">
+                                <i className={`fa-regular ${mode === 'schedule' ? 'fa-clock' : 'fa-calendar'}`}></i>
+                                <input type="checkbox" checked={mode === 'schedule'} onChange={(e) => setMode(e.target.checked ? 'schedule' : 'now')} style={{ display: 'none' }} />
+                            </label>
+                        )}
+
+                        <button type="button" className="tool-btn" onClick={() => setShowOptions(!showOptions)} title="Settings">
+                            <i className="fa-solid fa-gear"></i>
+                        </button>
+                   </div>
+                   
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {onCancel && (
+                             <button type="button" onClick={onCancel} className="btn-ghost" style={{ fontSize: '0.9rem', width: 'auto' }}>Cancel</button>
+                        )}
+                         
+                        {mode === 'schedule' && (
+                             <input 
+                                type="datetime-local" 
+                                value={scheduledAt} 
+                                onChange={(e) => setScheduledAt(e.target.value)} 
+                                style={{ padding: '6px', fontSize: '0.8rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
+                             />
+                        )}
+
+                        <button 
+                            type="submit" 
+                            disabled={status === 'loading'} 
+                            className="btn btn-primary" 
+                            style={{ width: 'auto', height: 36, padding: '0 20px', fontSize: '0.95rem', margin: 0 }}
+                        >
+                            {status === 'loading' ? (postId ? 'Updating...' : 'Posting...') : (mode === 'schedule' ? (postId ? 'Update' : 'Schedule') : (replyTo ? 'Reply' : 'Post'))}
+                        </button>
+                   </div>
                 </div>
-            )}
+
+                {/* Extended Options */}
+                {showOptions && (
+                  <div style={{ padding: '10px 0', borderTop: '1px solid var(--border-color)', fontSize: '0.9rem' }}>
+                     <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Languages</div>
+                     <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                        {LANGUAGES.map(lang => (
+                           <label key={lang.code} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <input type="checkbox" checked={languages.includes(lang.code)} onChange={(e) => {
+                                  if (e.target.checked) setLanguages([...languages, lang.code]);
+                                  else setLanguages(languages.filter(l => l !== lang.code));
+                              }} />
+                              {lang.label}
+                           </label>
+                        ))}
+                     </div>
+                     
+                     <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Content Warnings</div>
+                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                        {LABELS.map(lbl => (
+                           <label key={lbl.val} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <input type="checkbox" checked={labels.includes(lbl.val)} onChange={(e) => {
+                                  if (e.target.checked) setLabels([...labels, lbl.val]);
+                                  else setLabels(labels.filter(l => l !== lbl.val));
+                              }} />
+                              {lbl.label}
+                           </label>
+                        ))}
+                     </div>
+
+                     <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Advanced</div>
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <div style={{ display: 'flex', gap: 15 }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)' }}>Who can reply?</span>
+                            {['mention', 'follower', 'following'].map(rule => (
+                              <label key={rule} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <input 
+                                  type="checkbox" 
+                                  value={rule}
+                                  checked={threadgate.includes(rule)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setThreadgate([...threadgate, rule]);
+                                    else setThreadgate(threadgate.filter(r => r !== rule));
+                                  }}
+                                />
+                                {rule.charAt(0).toUpperCase() + rule.slice(1)}s
+                              </label>
+                            ))}
+                        </div>
+                     </div>
+                  </div>
+                )}
+            </div>
           </div>
-
-        {/* Tools and Actions Bar */}
-        <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 15, alignItems: 'center' }}>
-             {/* Image Upload Button */}
-             <label style={{ cursor: 'pointer', color: 'var(--primary-color)', fontSize: '1.2rem' }}>
-                <i className="fa-regular fa-image"></i>
-                <input type="file" accept="image/*" multiple onChange={handleImageSelect} style={{ display: 'none' }} disabled={images.length + existingImages.length >= 4} />
-             </label>
-
-             {/* Mode Switcher */}
-             {!replyTo && !quotePost && !postId && (
-                <label style={{ cursor: 'pointer', color: mode === 'schedule' ? 'var(--primary-color)' : 'var(--text-color-secondary)', fontSize: '1.2rem' }} title="Schedule">
-                    <i className="fa-regular fa-clock"></i>
-                    <input type="checkbox" checked={mode === 'schedule'} onChange={(e) => setMode(e.target.checked ? 'schedule' : 'now')} style={{ display: 'none' }} />
-                </label>
-             )}
-
-             <button type="button" onClick={() => setShowOptions(!showOptions)} style={{ border: 'none', background: 'none', color: 'var(--text-color-secondary)', fontSize: '1rem', cursor: 'pointer' }}>
-                <i className="fa-solid fa-gear"></i>
-             </button>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-             {onCancel && (
-                 <button type="button" onClick={onCancel} className="btn-ghost" style={{ fontSize: '0.9rem' }}>Cancel</button>
-             )}
-             
-             {mode === 'schedule' && (
-                 <input 
-                    type="datetime-local" 
-                    value={scheduledAt} 
-                    onChange={(e) => setScheduledAt(e.target.value)} 
-                    style={{ padding: '4px', fontSize: '0.8rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
-                 />
-             )}
-             <button type="submit" disabled={status === 'loading'} className="btn" style={{ backgroundColor: 'var(--primary-color)', color: '#fff', borderRadius: 9999, padding: '8px 20px', fontSize: '0.95rem' }}>
-                {status === 'loading' ? (postId ? 'Updating...' : 'Posting...') : (mode === 'schedule' ? (postId ? 'Update' : 'Schedule') : (replyTo ? 'Reply' : 'Post'))}
-             </button>
-          </div>
-        </div>
-
-        {/* Extended Options */}
-        {showOptions && (
-          <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border-color)', background: 'var(--card-bg-secondary)', fontSize: '0.9rem' }}>
-             <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Languages</div>
-             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                {LANGUAGES.map(lang => (
-                   <label key={lang.code} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <input type="checkbox" checked={languages.includes(lang.code)} onChange={(e) => {
-                          if (e.target.checked) setLanguages([...languages, lang.code]);
-                          else setLanguages(languages.filter(l => l !== lang.code));
-                      }} />
-                      {lang.label}
-                   </label>
-                ))}
-             </div>
-             
-             <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Content Warnings</div>
-             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
-                {LABELS.map(lbl => (
-                   <label key={lbl.val} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <input type="checkbox" checked={labels.includes(lbl.val)} onChange={(e) => {
-                          if (e.target.checked) setLabels([...labels, lbl.val]);
-                          else setLabels(labels.filter(l => l !== lbl.val));
-                      }} />
-                      {lbl.label}
-                   </label>
-                ))}
-             </div>
-
-             <div style={{ marginBottom: 5, fontWeight: 'bold' }}>Advanced</div>
-             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <div style={{ display: 'flex', gap: 15 }}>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)' }}>Who can reply?</span>
-                    {['mention', 'follower', 'following'].map(rule => (
-                      <label key={rule} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <input 
-                          type="checkbox" 
-                          value={rule}
-                          checked={threadgate.includes(rule)}
-                          onChange={(e) => {
-                            if (e.target.checked) setThreadgate([...threadgate, rule]);
-                            else setThreadgate(threadgate.filter(r => r !== rule));
-                          }}
-                        />
-                        {rule.charAt(0).toUpperCase() + rule.slice(1)}s
-                      </label>
-                    ))}
-                </div>
-                <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <input 
-                      type="checkbox" 
-                      checked={disableQuotes}
-                      onChange={(e) => setDisableQuotes(e.target.checked)}
-                    />
-                    Disable Quote Posts
-                  </label>
-                </div>
-             </div>
-          </div>
-        )}
       </form>
       {status === 'success' && <div style={{ padding: '10px 20px', color: 'var(--success-color)' }}>Posted successfully!</div>}
       {errorMsg && <div style={{ padding: '10px 20px', color: 'var(--error-color)' }}>{errorMsg}</div>}

@@ -1,128 +1,61 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 
 interface LoginViewProps {
   onLogin: (handle: string) => void;
 }
 
-const HISTORY_KEY = 'bsky_login_history';
-const MAX_HISTORY = 15;
-
 export function LoginView({ onLogin }: LoginViewProps) {
   const [handle, setHandle] = useState('');
-  const [history, setHistory] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem(HISTORY_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      console.error('Failed to load login history', e);
-      return [];
-    }
-  });
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Handle click outside to close dropdown
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const saveHandleToHistory = (newHandle: string) => {
-    // Remove duplicates of the new handle, add to front
-    const filtered = history.filter(h => h.toLowerCase() !== newHandle.toLowerCase());
-    const newHistory = [newHandle, ...filtered].slice(0, MAX_HISTORY);
-    
-    setHistory(newHistory);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!handle.trim()) return;
+    if (!handle) return;
     
-    saveHandleToHistory(handle.trim());
-    onLogin(handle.trim());
-  };
-
-  const handleClearHistory = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent dropdown from closing immediately or input blur issues
-    if (confirm('Clear login history?')) {
-        setHistory([]);
-        localStorage.removeItem(HISTORY_KEY);
-        setHandle('');
+    setLoading(true);
+    // Basic normalization of handle
+    let cleanHandle = handle.replace('@', '').trim();
+    if (!cleanHandle.includes('.')) {
+        cleanHandle += '.bsky.social'; // Default domain convenience
     }
+    
+    await onLogin(cleanHandle);
+    setLoading(false);
   };
-
-  const handleHistorySelect = (selectedHandle: string) => {
-    setHandle(selectedHandle);
-    setIsDropdownOpen(false);
-  };
-
-  // Filter history based on input
-  const filteredHistory = history.filter(h => 
-    h.toLowerCase().includes(handle.toLowerCase())
-  );
 
   return (
-    <div className="card login-card">
-      <h2>Sign in to Bluesky</h2>
-      <p>Enter your handle (e.g., alice.bsky.social)</p>
-      
-      <form onSubmit={handleSubmit} className="login-form">
-        <div className="input-group" ref={wrapperRef}>
-          <input
-            type="text"
-            value={handle}
-            onChange={(e) => {
-                setHandle(e.target.value);
-                setIsDropdownOpen(true);
-            }}
-            onFocus={() => setIsDropdownOpen(true)}
-            placeholder="User Handle"
-            className="handle-input"
-            required
-          />
+    <div className="auth-container">
+       <div className="auth-card">
+          <div style={{ marginBottom: 30 }}>
+             <i className="fa-brands fa-bluesky" style={{ fontSize: '4rem', color: 'var(--primary-color)' }}></i>
+          </div>
+          <h1 className="auth-title">Sign in to Bluesky</h1>
           
-          {isDropdownOpen && (history.length > 0) && (
-            <div className="history-dropdown">
-              {filteredHistory.length > 0 ? (
-                filteredHistory.map((item) => (
-                  <div 
-                    key={item} 
-                    className="history-item"
-                    onClick={() => handleHistorySelect(item)}
-                  >
-                    {item}
-                  </div>
-                ))
-              ) : (
-                <div className="history-empty">No matches</div>
-              )}
-              
-              {history.length > 0 && (
-                  <div className="history-footer">
-                    <button 
-                        type="button" 
-                        className="clear-history-btn"
-                        onClick={handleClearHistory}
-                    >
-                        Clear History
-                    </button>
-                  </div>
-              )}
-            </div>
-          )}
-        </div>
+          <form onSubmit={handleSubmit}>
+            <input
+              type="text"
+              className="auth-input"
+              placeholder="Username or email (e.g. alice.bsky.social)"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              disabled={loading}
+              autoFocus
+            />
+            
+            <button 
+                type="submit" 
+                className="btn btn-primary" 
+                disabled={loading || !handle}
+                style={{ borderRadius: 999, fontSize: '1.1rem', fontWeight: 700 }}
+            >
+              {loading ? 'Connecting...' : 'Next'}
+            </button>
+          </form>
 
-        <button type="submit" className="login-btn">
-          Sign In
-        </button>
-      </form>
+          <div style={{ marginTop: 24, fontSize: '0.9rem', color: 'var(--text-color-secondary)' }}>
+             Don't have an account? <a href="https://bsky.app" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>Sign up</a>
+          </div>
+       </div>
     </div>
   );
 }

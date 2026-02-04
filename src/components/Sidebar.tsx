@@ -1,112 +1,58 @@
-import { useState, useRef, useEffect } from 'react';
-import { Agent } from '@atproto/api';
-import { UserProfile } from './UserProfile';
-
 interface SidebarProps {
-  agent: Agent;
-  did: string;
   currentView: string;
-  onViewChange: (view: 'timeline' | 'scheduled' | 'profile' | 'search' | 'notifications') => void;
+  onViewChange: (view: string) => void;
   onLogout: () => void;
   onThemeToggle: () => void;
+  onCompose: () => void;
 }
 
-export function Sidebar({ agent, did, currentView, onViewChange, onLogout, onThemeToggle }: SidebarProps) {
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-            setShowMenu(false);
-        }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+export function Sidebar({ currentView, onViewChange, onLogout, onThemeToggle, onCompose }: SidebarProps) {
+  const navItems = [
+    { id: 'timeline', icon: 'fa-solid fa-house', label: 'Home' },
+    { id: 'search', icon: 'fa-solid fa-magnifying-glass', label: 'Search' },
+    { id: 'notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
+    { id: 'scheduled', icon: 'fa-solid fa-calendar', label: 'Scheduled' },
+    { id: 'profile', icon: 'fa-solid fa-user', label: 'Profile' },
+  ];
 
   return (
-    <div className="sidebar">
-      <div className="desktop-only" style={{ marginBottom: 20, padding: '10px 20px' }}>
-         <h2 style={{ color: 'var(--primary-color)', margin: 0 }}>Bluesky</h2>
+    <aside className="sidebar">
+      <div className="sidebar-logo" onClick={() => onViewChange('timeline')}>
+        <i className="fa-brands fa-bluesky" style={{ fontSize: '2rem', color: 'var(--primary-color)' }}></i>
       </div>
 
       <nav style={{ flex: 1 }}>
-        <div 
-          className={`nav-item ${currentView === 'timeline' ? 'active' : ''}`}
-          onClick={() => onViewChange('timeline')}
-          data-icon="🏠"
-        >
-          <i className="fa-solid fa-house"></i> <span>Home</span>
+        {navItems.map((item) => (
+          <div
+            key={item.id}
+            className={`nav-item ${currentView === item.id ? 'active' : ''}`}
+            onClick={() => onViewChange(item.id)}
+          >
+            <i className={item.icon}></i>
+            <span>{item.label}</span>
+          </div>
+        ))}
+        
+        <div className="nav-item" onClick={onThemeToggle}>
+             <i className="fa-solid fa-circle-half-stroke"></i>
+             <span>Theme</span>
         </div>
-        <div 
-          className={`nav-item ${currentView === 'search' ? 'active' : ''}`}
-          onClick={() => onViewChange('search')}
-          data-icon="🔍"
-        >
-          <i className="fa-solid fa-magnifying-glass"></i> <span>Search</span>
-        </div>
-        <div 
-          className={`nav-item ${currentView === 'notifications' ? 'active' : ''}`}
-          onClick={() => onViewChange('notifications')}
-          data-icon="🔔"
-        >
-          <i className="fa-solid fa-bell"></i> <span>Notifications</span>
-        </div>
-        <div 
-          className={`nav-item ${currentView === 'scheduled' ? 'active' : ''}`}
-          onClick={() => onViewChange('scheduled')}
-          data-icon="⏳"
-        >
-          <i className="fa-solid fa-clock"></i> <span>Scheduled</span>
-        </div>
-        <div 
-          className={`nav-item ${currentView === 'profile' ? 'active' : ''}`}
-          onClick={() => onViewChange('profile')}
-          data-icon="👤"
-        >
-          <i className="fa-solid fa-user"></i> <span>Profile</span>
-        </div>
+
+        <button className="btn btn-primary" onClick={onCompose}>
+          Post
+        </button>
       </nav>
 
-      <div className="desktop-only" style={{ borderTop: '1px solid var(--border-color-dark)', paddingTop: 10, position: 'relative' }} ref={menuRef}>
-         <div onClick={() => setShowMenu(!showMenu)} style={{ cursor: 'pointer' }}>
-            <UserProfile agent={agent} did={did} />
+      <div style={{ padding: '20px 0' }}>
+         <div 
+            className="nav-item" 
+            onClick={onLogout} 
+            style={{ color: 'var(--error-color)', marginTop: 'auto' }}
+         >
+            <i className="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>Log out</span>
          </div>
-         
-         {showMenu && (
-             <div style={{
-                 position: 'absolute',
-                 bottom: '100%',
-                 left: 0,
-                 width: '100%',
-                 background: 'var(--card-bg)',
-                 border: '1px solid var(--border-color)',
-                 borderRadius: 12,
-                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                 padding: 8,
-                 marginBottom: 10,
-                 zIndex: 100
-             }}>
-                <button 
-                    className="btn-ghost" 
-                    onClick={() => { onThemeToggle(); setShowMenu(false); }} 
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', borderRadius: 8, padding: '10px' }}
-                >
-                   <i className="fa-solid fa-moon"></i> Theme
-                </button>
-                <button 
-                    className="btn-ghost" 
-                    onClick={() => { onLogout(); setShowMenu(false); }} 
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', borderRadius: 8, padding: '10px', color: 'var(--error-color)' }}
-                >
-                   <i className="fa-solid fa-right-from-bracket"></i> Logout
-                </button>
-             </div>
-         )}
       </div>
-    </div>
+    </aside>
   );
 }

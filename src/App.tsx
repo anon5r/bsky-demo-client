@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
-import './App.css';
+import './App.css'; // This might be redundant if using index.css mainly, but keeping for safety
 import { getBlueskyClient } from './lib/bluesky-oauth';
 import { OAuthCallback } from './components/OAuthCallback';
 import { PostForm } from './components/PostForm';
 import { PostList } from './components/PostList';
 import { ScheduleList } from './components/ScheduleList';
 import { LoginView } from './components/LoginView';
-import { Sidebar } from './components/Sidebar';
 import { Search } from './components/Search';
 import { NotificationList } from './components/NotificationList';
 import { ThreadView } from './components/ThreadView';
 import { UserList } from './components/UserList';
 import { ProfileView } from './components/ProfileView';
+import { Layout } from './components/Layout';
+import { Modal } from './components/Modal';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 
@@ -32,6 +33,7 @@ function App() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [scheduleUpdateTrigger, setScheduleUpdateTrigger] = useState(0);
   const [timelineUpdateTrigger, setTimelineUpdateTrigger] = useState(0);
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') return saved;
@@ -49,16 +51,7 @@ function App() {
 
   async function initAgent(session: OAuthSession) {
     try {
-      console.log('App: Full Session Object:', session);
-      // @ts-ignore
-      if (session.tokenSet) {
-         // @ts-ignore
-         console.log('App: TokenSet:', session.tokenSet);
-      }
-      
       const tokenInfo = await session.getTokenInfo();
-      console.log('App: Token Info (Default):', tokenInfo);
-
       const agent = new Agent({
         service: tokenInfo.aud,
         // @ts-expect-error fetch signature mismatch
@@ -107,10 +100,10 @@ function App() {
   async function handleLogin(handle: string) {
     const client = await getBlueskyClient();
     try {
-                  await client.signIn(handle, {
-                    state: crypto.randomUUID(),
-                    scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app",
-                  });    } catch (e) {
+          await client.signIn(handle, {
+            state: crypto.randomUUID(),
+            scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app",
+          });    } catch (e) {
       console.error("Login failed", e);
       alert("Login failed: " + e);
     }
@@ -142,7 +135,6 @@ function App() {
 
   function handleOAuthError(err: unknown) {
       console.error("OAuth error:", err);
-      // alert("Login failed or cancelled."); // Optional: show error
       setCurrentView('login');
   }
 
@@ -153,14 +145,18 @@ function App() {
       } else {
           setDashboardView({ type });
       }
+      // Scroll to top
+      window.scrollTo(0, 0);
   };
 
   const handleGoToProfile = (did: string) => {
       setDashboardView({ type: 'profile', did });
+      window.scrollTo(0, 0);
   };
 
   const handleGoToThread = (post: any) => {
       setDashboardView({ type: 'thread', uri: post.uri });
+      window.scrollTo(0, 0);
   };
 
   if (currentView === 'callback') {
@@ -170,44 +166,41 @@ function App() {
   if (!bskySession || currentView === 'login') {
     return (
       <div className="App">
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
-          <h1 style={{ marginBottom: 40 }}>Bluesky Demo Client</h1>
           <LoginView onLogin={handleLogin} />
-          <button onClick={toggleTheme} className="btn-ghost" style={{ marginTop: 20 }}>
-            {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
-          </button>
-        </div>
+          <div style={{ position: 'absolute', bottom: 20, right: 20 }}>
+            <button onClick={toggleTheme} className="btn-ghost">
+                {theme === 'light' ? <i className="fa-solid fa-moon"></i> : <i className="fa-solid fa-sun"></i>}
+            </button>
+          </div>
       </div>
     );
   }
 
   return (
-    <div className="app-container">
+    <>
       {agent && bskySession && (
-        <Sidebar 
-          agent={agent} 
-          did={bskySession.sub} 
-          currentView={dashboardView.type}
-          onViewChange={handleViewChange}
-          onLogout={logout}
-          onThemeToggle={toggleTheme}
-        />
-      )}
-
-      <main className="main-content">
-        {dashboardView.type === 'timeline' && (
-          <>
-            <div className="feed-header">Home</div>
-            {agent && bskySession && (
-                <PostForm 
-                    agent={agent}
-                    session={bskySession}
-                    onPostCreated={() => {
-                      setTimelineUpdateTrigger(prev => prev + 1);
-                    }}
-                />
-            )}
-            {agent && bskySession && (
+        <Layout 
+            currentView={dashboardView.type === 'profile' && dashboardView.did === bskySession.sub ? 'profile' : dashboardView.type} 
+            onViewChange={handleViewChange}
+            onLogout={logout}
+            onThemeToggle={toggleTheme}
+            onCompose={() => setIsComposeOpen(true)}
+        >
+            {dashboardView.type === 'timeline' && (
+            <>
+                <div className="feed-header" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                    Home
+                </div>
+                {/* Inline Composer (Hidden on mobile usually, but good for desktop) */}
+                <div className="desktop-only">
+                    <PostForm 
+                        agent={agent}
+                        session={bskySession}
+                        onPostCreated={() => {
+                        setTimelineUpdateTrigger(prev => prev + 1);
+                        }}
+                    />
+                </div>
                 <PostList 
                     key={timelineUpdateTrigger}
                     agent={agent} 
@@ -215,108 +208,118 @@ function App() {
                     session={bskySession} 
                     onPostClick={handleGoToThread}
                 />
+            </>
             )}
-          </>
-        )}
 
-        {dashboardView.type === 'scheduled' && (
-          <>
-             <div className="feed-header">Scheduled Posts</div>
-             {agent && bskySession && (
-                <PostForm 
-                    agent={agent}
-                    session={bskySession}
-                    onPostCreated={() => setScheduleUpdateTrigger(prev => prev + 1)}
-                    defaultMode="schedule"
-                />
-             )}
-             {bskySession && (
+            {dashboardView.type === 'scheduled' && (
+            <>
+                <div className="feed-header">Scheduled Posts</div>
+                <div className="desktop-only">
+                    <PostForm 
+                        agent={agent}
+                        session={bskySession}
+                        onPostCreated={() => setScheduleUpdateTrigger(prev => prev + 1)}
+                        defaultMode="schedule"
+                    />
+                </div>
                 <ScheduleList 
                     key={scheduleUpdateTrigger}
                     session={bskySession}
                     agent={agent || undefined}
                 />
-             )}
-          </>
-        )}
+            </>
+            )}
 
-        {dashboardView.type === 'profile' && (
-           <>
-             <div className="feed-header">Profile</div>
-             {agent && bskySession && (
-                 <ProfileView 
+            {dashboardView.type === 'profile' && (
+            <>
+                <div className="feed-header">
+                    <button className="btn-ghost" onClick={() => handleViewChange('timeline')} style={{ marginRight: 10 }}>
+                        <i className="fa-solid fa-arrow-left"></i>
+                    </button>
+                    Profile
+                </div>
+                <ProfileView 
                     agent={agent} 
                     did={dashboardView.did} 
                     session={bskySession}
                     onViewFollowers={(did) => setDashboardView({ type: 'followers', did })}
                     onViewFollowing={(did) => setDashboardView({ type: 'following', did })}
-                 />
-             )}
-           </>
-        )}
+                />
+            </>
+            )}
 
-        {dashboardView.type === 'thread' && (
-            <>
-                <div className="feed-header">
-                    <button className="btn-ghost" onClick={() => setDashboardView({ type: 'timeline' })} style={{ marginRight: 10 }}>
-                        <i className="fa-solid fa-arrow-left"></i>
-                    </button>
-                    Thread
-                </div>
-                {agent && bskySession && (
+            {dashboardView.type === 'thread' && (
+                <>
+                    <div className="feed-header">
+                        <button className="btn-ghost" onClick={() => handleViewChange('timeline')} style={{ marginRight: 10 }}>
+                            <i className="fa-solid fa-arrow-left"></i>
+                        </button>
+                        Thread
+                    </div>
                     <ThreadView 
                         agent={agent} 
                         uri={dashboardView.uri} 
                         session={bskySession}
                         onPostClick={handleGoToThread}
                     />
-                )}
-            </>
-        )}
+                </>
+            )}
 
-        {dashboardView.type === 'search' && (
-            <>
-                <div className="feed-header">Search</div>
-                {agent && (
+            {dashboardView.type === 'search' && (
+                <>
+                    <div className="feed-header">Search</div>
                     <Search 
                         agent={agent} 
                         onSelectActor={handleGoToProfile} 
                     />
-                )}
-            </>
-        )}
+                </>
+            )}
 
-        {dashboardView.type === 'notifications' && (
-            <>
-                <div className="feed-header">Notifications</div>
-                {agent && <NotificationList agent={agent} />}
-            </>
-        )}
+            {dashboardView.type === 'notifications' && (
+                <>
+                    <div className="feed-header">Notifications</div>
+                    <NotificationList agent={agent} />
+                </>
+            )}
 
-        {(dashboardView.type === 'followers' || dashboardView.type === 'following') && (
-            <>
-                <div className="feed-header">
-                    <button 
-                        className="btn-ghost" 
-                        onClick={() => setDashboardView({ type: 'profile', did: dashboardView.did })} 
-                        style={{ marginRight: 10 }}
-                    >
-                        <i className="fa-solid fa-arrow-left"></i>
-                    </button>
-                    {dashboardView.type === 'followers' ? 'Followers' : 'Following'}
-                </div>
-                {agent && (
+            {(dashboardView.type === 'followers' || dashboardView.type === 'following') && (
+                <>
+                    <div className="feed-header">
+                        <button 
+                            className="btn-ghost" 
+                            onClick={() => setDashboardView({ type: 'profile', did: dashboardView.did })} 
+                            style={{ marginRight: 10 }}
+                        >
+                            <i className="fa-solid fa-arrow-left"></i>
+                        </button>
+                        {dashboardView.type === 'followers' ? 'Followers' : 'Following'}
+                    </div>
                     <UserList 
                         agent={agent} 
                         did={dashboardView.did} 
                         type={dashboardView.type}
                         onSelectActor={handleGoToProfile}
                     />
-                )}
-            </>
-        )}
-      </main>
-    </div>
+                </>
+            )}
+        </Layout>
+      )}
+
+      {/* Global Compose Modal */}
+      {agent && bskySession && (
+          <Modal isOpen={isComposeOpen} onClose={() => setIsComposeOpen(false)}>
+             <PostForm 
+                agent={agent}
+                session={bskySession}
+                onPostCreated={() => {
+                    setIsComposeOpen(false);
+                    setTimelineUpdateTrigger(prev => prev + 1);
+                }}
+                onCancel={() => setIsComposeOpen(false)}
+             />
+          </Modal>
+      )}
+    </>
   );
 }
 

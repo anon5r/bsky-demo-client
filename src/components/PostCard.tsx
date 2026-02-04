@@ -24,7 +24,7 @@ function RichTextDisplay({ text, facets }: { text: string, facets?: any[] }) {
   }, [text, facets]);
 
   return (
-    <div className="post-text" style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+    <div className="post-text">
       {segments.map((segment: any, i) => {
         if (segment.link) {
            return (
@@ -43,14 +43,14 @@ function RichTextDisplay({ text, facets }: { text: string, facets?: any[] }) {
 
         if (segment.mention) {
             return (
-              <a 
+              <span 
                 key={i} 
-                href={`/profile/${segment.mention.did}`} 
+                className="mention"
                 onClick={(e) => { e.stopPropagation(); /* Handle navigation */ }}
-                style={{ color: 'var(--primary-color)', textDecoration: 'none' }}
+                style={{ cursor: 'pointer' }}
               >
                 {segment.text}
-              </a>
+              </span>
             );
         }
 
@@ -95,106 +95,109 @@ export function PostCard({ post, reply, reason, currentDid, onReply, onQuote, on
   const repostedBy = isReasonRepost ? reason.by : null;
 
   return (
-    <div 
+    <article 
       className="post-card" 
       onClick={() => onClick && onClick(post)} 
-      style={{ cursor: onClick ? 'pointer' : 'default', backgroundColor: isMain ? 'var(--card-bg-hover)' : undefined }}
+      style={{ 
+        cursor: onClick ? 'pointer' : 'default', 
+        flexDirection: isMain ? 'column' : 'row',
+        padding: isMain ? '20px' : undefined 
+      }}
     >
-      <img 
-        src={post.author.avatar || 'https://via.placeholder.com/48'} 
-        alt={post.author.handle} 
-        className="avatar"
-        style={{ width: isMain ? 56 : 48, height: isMain ? 56 : 48 }}
-        onClick={(e) => { e.stopPropagation(); /* Go to profile? */ }}
-      />
+      {/* Repost Context (Above everything) */}
+      {(repostedBy || reply) && !isMain && (
+        <div style={{ position: 'absolute', top: 8, left: 48, fontSize: '0.8rem', color: 'var(--text-color-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+           {repostedBy && <><i className="fa-solid fa-retweet"></i> Reposted by {repostedBy.displayName || repostedBy.handle}</>}
+        </div>
+      )}
+
+      {/* Avatar */}
+      <div style={{ marginTop: (repostedBy || reply) && !isMain ? 16 : 0 }}>
+        <img 
+            src={post.author.avatar || 'https://via.placeholder.com/48'} 
+            alt={post.author.handle} 
+            className="avatar"
+            style={{ width: isMain ? 56 : 48, height: isMain ? 56 : 48 }}
+        />
+      </div>
       
-      <div className="post-content" style={{ flex: 1 }}>
-          {/* Repost / Reply Header context */}
-          {(repostedBy || reply) && (
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-color-secondary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-               {repostedBy && (
-                   <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <i className="fa-solid fa-retweet"></i>
-                      Reposted by <strong>{repostedBy.displayName || repostedBy.handle}</strong>
-                   </span>
-               )}
-               
-               {repostedBy && reply && <span>&gt;</span>}
-
-               {reply && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <i className="fa-solid fa-reply"></i>
-                      Replying to @{reply.parent?.author?.handle || 'user'}
-                  </span>
-               )}
-            </div>
-          )}
-
-          <div className="post-header" style={{ flexDirection: isMain ? 'column' : 'row', alignItems: isMain ? 'flex-start' : 'center' }}>
-                <div style={{ display: 'flex', flexDirection: isMain ? 'column' : 'row', gap: isMain ? 0 : 5 }}>
-                    <span className="display-name" style={{ fontSize: isMain ? '1.1rem' : undefined }}>{post.author.displayName || post.author.handle}</span>
+      <div className="post-content">
+          {/* Header */}
+          <div className="post-header" style={{ flexDirection: isMain ? 'column' : 'row', alignItems: isMain ? 'flex-start' : 'center', marginBottom: isMain ? 12 : 2 }}>
+                <div style={{ display: 'flex', flexDirection: isMain ? 'column' : 'row', gap: isMain ? 0 : 5, alignItems: isMain ? 'flex-start' : 'center' }}>
+                    <span className="display-name" style={{ fontSize: isMain ? '1.1rem' : undefined }}>
+                        {post.author.displayName || post.author.handle}
+                    </span>
                     <span className="handle">@{post.author.handle}</span>
                 </div>
-                <span className="timestamp">· {timeString}</span>
+                {!isMain && <span className="timestamp">{timeString}</span>}
           </div>
 
-          <div style={{ fontSize: isMain ? '1.2rem' : undefined, lineHeight: isMain ? 1.5 : undefined }}>
+          {/* Body */}
+          <div style={{ fontSize: isMain ? '1.25rem' : undefined, marginBottom: 12 }}>
                <RichTextDisplay text={post.record.text} facets={post.record.facets} />
           </div>
 
-            {images.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(images.length, 2)}, 1fr)`, gap: 4, marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
+          {/* Images */}
+          {images.length > 0 && (
+            <div className="image-preview-grid" style={{ gridTemplateColumns: images.length === 1 ? '1fr' : 'repeat(2, 1fr)', marginTop: 12 }}>
                 {images.map((img: any, i: number) => (
-                    <img 
-                    key={i} 
-                    src={img.thumb} 
-                    alt={img.alt} 
-                    style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', cursor: 'pointer' }}
-                    onClick={(e) => { e.stopPropagation(); window.open(img.fullsize, '_blank'); }}
-                    />
+                    <div key={i} className="image-preview-item" style={{ aspectRatio: images.length === 1 ? '16/9' : '1' }}>
+                        <img 
+                            src={img.thumb} 
+                            alt={img.alt} 
+                            onClick={(e) => { e.stopPropagation(); window.open(img.fullsize, '_blank'); }}
+                            style={{ cursor: 'zoom-in' }}
+                        />
+                    </div>
                 ))}
-                </div>
-            )}
+            </div>
+          )}
 
-            {/* Quoted Post Display */}
-            {isQuote && embedRecord.record && (
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 10, marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+          {/* Quoted Post */}
+          {isQuote && embedRecord.record && (
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 12, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <img src={embedRecord.record.author.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
-                    <strong>{embedRecord.record.author.displayName}</strong>
+                    <span style={{ fontWeight: 700 }}>{embedRecord.record.author.displayName}</span>
                     <span style={{ color: 'var(--text-color-secondary)' }}>@{embedRecord.record.author.handle}</span>
-                    </div>
-                    <div>
-                        {embedRecord.record.value?.text}
-                        {/* We could use RichTextDisplay here too if facets are available, but quoted record often has simple value */}
-                    </div>
-                </div>
-            )}
+                  </div>
+                  <div style={{ fontSize: '0.95rem' }}>
+                      {embedRecord.record.value?.text}
+                  </div>
+              </div>
+          )}
 
-            <div className="post-actions" style={{ marginTop: isMain ? 15 : 10, borderTop: isMain ? '1px solid var(--border-color)' : 'none', paddingTop: isMain ? 10 : 0 }}>
-                <div className="action-item reply" onClick={(e) => { e.stopPropagation(); onReply(post); }}>
-                <i className="fa-regular fa-comment"></i> {post.replyCount || 0}
-                </div>
-                
-                <div className={`action-item repost ${isReposted ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onToggleRepost(post); }}>
-                <i className="fa-solid fa-retweet"></i> {post.repostCount || 0}
-                </div>
+          {isMain && <div style={{ color: 'var(--text-color-secondary)', margin: '16px 0', fontSize: '0.95rem' }}>{new Date(post.indexedAt).toLocaleString()}</div>}
 
-                <div className="action-item quote" onClick={(e) => { e.stopPropagation(); onQuote(post); }}>
-                <i className="fa-solid fa-quote-left"></i>
-                </div>
+          {/* Actions */}
+          <div className="post-actions" style={{ borderTop: isMain ? '1px solid var(--border-color)' : 'none', paddingTop: isMain ? 12 : 0 }}>
+                <button className="action-group reply" onClick={(e) => { e.stopPropagation(); onReply(post); }}>
+                    <div className="action-icon-wrapper"><i className="fa-regular fa-comment"></i></div>
+                    <span>{post.replyCount || 0}</span>
+                </button>
                 
-                <div className={`action-item like ${isLiked ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onToggleLike(post); }}>
-                <i className={`${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart`}></i> {post.likeCount || 0}
-                </div>
+                <button className={`action-group repost ${isReposted ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onToggleRepost(post); }}>
+                    <div className="action-icon-wrapper"><i className="fa-solid fa-retweet"></i></div>
+                    <span>{post.repostCount || 0}</span>
+                </button>
+
+                <button className="action-group quote" onClick={(e) => { e.stopPropagation(); onQuote(post); }}>
+                    <div className="action-icon-wrapper"><i className="fa-solid fa-quote-left"></i></div>
+                </button>
+                
+                <button className={`action-group like ${isLiked ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onToggleLike(post); }}>
+                    <div className="action-icon-wrapper"><i className={`${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart`}></i></div>
+                    <span>{post.likeCount || 0}</span>
+                </button>
                 
                 {post.author.did === currentDid && (
-                    <div className="action-item" style={{ color: 'var(--error-color)' }} onClick={(e) => { e.stopPropagation(); onDelete(post.uri); }}>
-                        <i className="fa-regular fa-trash-can"></i>
-                    </div>
+                    <button className="action-group" style={{ color: 'var(--text-color-secondary)' }} onClick={(e) => { e.stopPropagation(); onDelete(post.uri); }}>
+                        <div className="action-icon-wrapper"><i className="fa-regular fa-trash-can"></i></div>
+                    </button>
                 )}
-            </div>
-        </div>
-    </div>
+          </div>
+      </div>
+    </article>
   );
 }
