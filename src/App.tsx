@@ -107,11 +107,10 @@ function App() {
   async function handleLogin(handle: string) {
     const client = await getBlueskyClient();
     try {
-          await client.signIn(handle, {
-            state: crypto.randomUUID(),
-            prompt: 'login',
-            scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app",
-          });    } catch (e) {
+                  await client.signIn(handle, {
+                    state: crypto.randomUUID(),
+                    scope: "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app",
+                  });    } catch (e) {
       console.error("Login failed", e);
       alert("Login failed: " + e);
     }
