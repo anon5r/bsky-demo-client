@@ -1,4 +1,6 @@
-import { OAUTH_SCOPE, CLIENT_NAME } from '../src/lib/auth-config';
+// Hardcoded configuration to avoid import issues in Vercel Functions
+const OAUTH_SCOPE = "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app blob:image/* blob:video/*";
+const CLIENT_NAME = "Bluesky Client Demo App";
 
 export default function handler(request: any, response: any) {
   const protocol = request.headers['x-forwarded-proto'] || 'https';
