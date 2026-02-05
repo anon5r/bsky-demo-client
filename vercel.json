@@ -5,6 +5,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/auth/client-metadata/v4",
+      "destination": "/api/client-metadata-v4"
+    },
+    {
       "source": "/auth/client-metadata",
       "destination": "/api/client-metadata"
     },
