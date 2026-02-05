@@ -9,7 +9,7 @@ export default function handler(request: any, response: any) {
   const origin = `${protocol}://${safeHost}`;
 
   const metadata = {
-    client_id: `${origin}/auth/client-metadata`,
+    client_id: `${origin}/auth/client-metadata?v=3`,
     client_name: CLIENT_NAME,
     client_uri: origin,
     redirect_uris: [
@@ -26,5 +26,6 @@ export default function handler(request: any, response: any) {
 
   response.setHeader('Content-Type', 'application/json');
   response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Cache-Control', 'no-store');
   response.status(200).json(metadata);
 }
