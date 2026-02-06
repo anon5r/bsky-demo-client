@@ -1,6 +1,5 @@
 // Hardcoded configuration to avoid import issues in Vercel Functions
-import {OAUTH_SCOPE} from "../src/lib/auth-config";
-const CLIENT_NAME = "Bluesky Client Demo App";
+import {OAUTH_SCOPE, CLIENT_NAME} from "../src/lib/auth-config";
 
 export default function handler(request: any, response: any) {
   const protocol = request.headers['x-forwarded-proto'] || 'https';

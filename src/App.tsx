@@ -103,7 +103,7 @@ function App() {
     try {
           await client.signIn(handle, {
             state: crypto.randomUUID(),
-            scope: OAUTH_SCOPE,
+            scope: OAUTH_SCOPE.join(' '),
           });
     } catch (e) {
       console.error("Login failed", e);
