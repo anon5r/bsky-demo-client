@@ -1,5 +1,5 @@
 // Hardcoded configuration to avoid import issues in Vercel Functions
-const OAUTH_SCOPE = "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app blob:image/* blob:video/*";
+import {OAUTH_SCOPE} from "../src/lib/auth-config";
 const CLIENT_NAME = "Bluesky Client Demo App";
 
 export default function handler(request: any, response: any) {
@@ -11,13 +11,13 @@ export default function handler(request: any, response: any) {
   const origin = `${protocol}://${safeHost}`;
 
   const metadata = {
-    client_id: `${origin}/auth/client-metadata?v=3`,
+    client_id: `${origin}/auth/client-metadata`,
     client_name: CLIENT_NAME,
     client_uri: origin,
     redirect_uris: [
       `${origin}/oauth/callback`
     ],
-    scope: OAUTH_SCOPE,
+    scope: OAUTH_SCOPE.join(' '),
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     response_mode: "query",
