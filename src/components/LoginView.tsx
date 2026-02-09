@@ -15,7 +15,8 @@ export function LoginView({ onLogin }: LoginViewProps) {
     const stored = localStorage.getItem(HISTORY_KEY);
     if (stored) {
       try {
-        setHistory(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        setTimeout(() => setHistory(parsed), 0);
       } catch (e) {
         console.error("Failed to parse login history", e);
       }
@@ -96,7 +97,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
                       alignItems: 'center', 
                       justifyContent: 'space-between',
                       padding: '10px 16px', 
-                      background: 'var(--card-bg-hover)', 
+                      background: 'var(--bg-color-secondary)', 
                       borderRadius: 12, 
                       cursor: 'pointer',
                       border: '1px solid var(--border-color)',
@@ -105,10 +106,10 @@ export function LoginView({ onLogin }: LoginViewProps) {
                     className="history-item"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--border-color-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-color-secondary)' }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-color-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-color-secondary)' }}>
                             <i className="fa-solid fa-user"></i>
                         </div>
-                        <span style={{ fontWeight: 500 }}>{h}</span>
+                        <span style={{ fontWeight: 500, color: 'var(--text-color)' }}>{h}</span>
                     </div>
                     <button 
                       onClick={(e) => removeFromHistory(e, h)}

@@ -24,7 +24,7 @@ export function UserProfile({ agent, did }: UserProfileProps) {
        {profile.avatar ? (
          <img src={profile.avatar} className="avatar" alt={profile.handle} style={{ width: 40, height: 40 }} />
        ) : (
-         <div className="avatar" style={{ width: 40, height: 40, background: '#ccc' }} />
+         <div className="avatar" style={{ width: 40, height: 40, background: 'var(--bg-color-tertiary)' }} />
        )}
        <div style={{ overflow: 'hidden' }}>
           <div className="display-name" style={{ fontSize: '0.95rem' }}>{profile.displayName || profile.handle}</div>

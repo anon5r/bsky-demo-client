@@ -37,7 +37,7 @@ export function Search({ agent, onSelectActor }: SearchProps) {
                placeholder="Search users..." 
                style={{ flex: 1 }}
             />
-            <button type="submit" className="btn btn-secondary" disabled={loading}>
+            <button type="submit" className="btn btn-secondary" disabled={loading} style={{ width: 'auto' }}>
                {loading ? 'Searching...' : 'Search'}
             </button>
          </form>
@@ -53,9 +53,9 @@ export function Search({ agent, onSelectActor }: SearchProps) {
             >
                <img src={actor.avatar} className="avatar" style={{width: 48, height: 48}} />
                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 'bold' }}>{actor.displayName || actor.handle}</div>
+                  <div style={{ fontWeight: 'bold', color: 'var(--text-color)' }}>{actor.displayName || actor.handle}</div>
                   <div style={{ color: 'var(--text-color-secondary)' }}>@{actor.handle}</div>
-                  {actor.description && <div style={{ fontSize: '0.9rem', marginTop: 5 }}>{actor.description}</div>}
+                  {actor.description && <div style={{ fontSize: '0.9rem', marginTop: 5, color: 'var(--text-color)' }}>{actor.description}</div>}
                </div>
             </div>
          ))}

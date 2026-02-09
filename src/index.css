@@ -4,25 +4,37 @@
   font-weight: 400;
 
   /* Color Variables - Light Mode */
-  --bg-color: #ffffff; /* Modern clean white for main bg in light mode */
+  --bg-color: #ffffff;
+  --bg-color-secondary: #f7f9f9;
+  --bg-color-tertiary: #eff3f4;
+  
   --text-color: #0f1419;
   --text-color-secondary: #536471;
+  --text-color-tertiary: #8b98a5;
+  
   --card-bg: #ffffff;
   --card-bg-hover: #f7f9f9;
+  --card-bg-secondary: #f7f9f9;
+  
   --border-color: #eff3f4;
-  --border-color-dark: #cfd9de; /* Slightly darker for distinct borders */
-  --primary-color: #0085ff; /* Bluesky Blue */
+  --border-color-dark: #cfd9de;
+  
+  --primary-color: #0085ff;
   --primary-hover: #0060df;
   --error-color: #f4212e;
   --error-bg: #ffeef0;
   --success-color: #00ba7c;
-  --nav-hover-bg: #e8f5fd;
+  --nav-hover-bg: rgba(0, 133, 255, 0.1);
   --modal-overlay: rgba(0, 0, 0, 0.4);
+  
+  --input-bg: #ffffff;
+  --input-border: #cfd9de;
+  --input-focus-border: #0085ff;
 
   /* Layout */
   --sidebar-width: 275px;
   --feed-width: 600px;
-  --header-height: 53px; /* Standard Twitter/Bluesky header height */
+  --header-height: 53px;
 
   color-scheme: light dark;
   color: var(--text-color);
@@ -36,20 +48,32 @@
 
 /* Dark Mode Variables */
 .dark {
-  --bg-color: #000000; /* True black for OLED/modern dark mode */
+  --bg-color: #000000;
+  --bg-color-secondary: #16181c;
+  --bg-color-tertiary: #2f3336;
+  
   --text-color: #e7e9ea;
   --text-color-secondary: #71767b;
+  --text-color-tertiary: #536471;
+  
   --card-bg: #000000;
-  --card-bg-hover: #16181c; /* Subtle hover state */
+  --card-bg-hover: #16181c;
+  --card-bg-secondary: #16181c;
+  
   --border-color: #2f3336;
   --border-color-dark: #2f3336;
-  --primary-color: #1d9bf0; /* Slightly lighter blue for dark mode contrast */
+  
+  --primary-color: #1d9bf0;
   --primary-hover: #1a8cd8;
   --error-color: #f4212e;
   --error-bg: #2c0b0e;
   --success-color: #00ba7c;
-  --nav-hover-bg: #181818;
+  --nav-hover-bg: rgba(29, 155, 240, 0.1);
   --modal-overlay: rgba(91, 112, 131, 0.4);
+  
+  --input-bg: #000000;
+  --input-border: #333639;
+  --input-focus-border: #1d9bf0;
 }
 
 body {
@@ -158,10 +182,15 @@ body {
   font-weight: 700;
   font-size: 1.06rem;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, opacity 0.2s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -172,8 +201,19 @@ body {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--text-color);
+  color: var(--bg-color);
+  height: 36px;
+  padding: 0 16px;
+  font-size: 0.9rem;
+}
+.btn-secondary:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
 .btn-ghost {
@@ -187,6 +227,84 @@ body {
 .btn-ghost:hover {
   background-color: var(--nav-hover-bg);
   color: var(--primary-color);
+}
+
+/* Global Input Styles */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="datetime-local"],
+textarea {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color-dark);
+  color: var(--text-color);
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--primary-color);
+}
+
+/* Mention List (Tiptap) */
+.mention-list {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 4px;
+  width: 250px;
+}
+
+.mention-item {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.2s;
+}
+
+.mention-item:hover,
+.mention-item.is-selected {
+  background-color: var(--nav-hover-bg);
+}
+
+.hover-bg:hover {
+  background-color: var(--card-bg-hover);
+}
+
+/* Tab styles usually need this */
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 16px 0;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-color-secondary);
+  border-bottom: 3px solid transparent;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.tab-item:hover {
+  background-color: var(--nav-hover-bg);
+}
+
+.tab-item.active {
+  font-weight: 700;
+  color: var(--text-color);
+  border-bottom-color: var(--primary-color);
 }
 
 /* Feed Headers */
@@ -490,16 +608,17 @@ body {
 .auth-input {
   width: 100%;
   padding: 16px;
-  border: 1px solid var(--border-color-dark);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   margin-bottom: 16px;
   font-size: 1rem;
-  background-color: transparent;
+  background-color: var(--input-bg);
   color: var(--text-color);
+  transition: border-color 0.2s;
 }
 .auth-input:focus {
-  border-color: var(--primary-color);
-  outline: 2px solid var(--primary-color); /* Accessibility */
+  border-color: var(--input-focus-border);
+  outline: none;
 }
 
 /* Responsive: Mobile Bottom Nav */

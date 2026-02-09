@@ -50,8 +50,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
   const [languages, setLanguages] = useState<string[]>(initialData?.langs || ['ja']);
   const [scheduledAt, setScheduledAt] = useState(initialData?.scheduledAt || '');
   const [threadgate, setThreadgate] = useState<string[]>(initialData?.threadgate || []);
-  // @ts-ignore
-  const [disableQuotes, setDisableQuotes] = useState(initialData?.disableQuotes || false);
+  const [disableQuotes] = useState(initialData?.disableQuotes || false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
   const [mode, setMode] = useState<'now' | 'schedule'>(defaultMode);
@@ -329,7 +328,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                     <div className="image-preview-grid">
                         {existingImages.map((_, imgIdx) => (
                             <div key={`existing-${imgIdx}`} className="image-preview-item">
-                                <div style={{ width: '100%', height: '100%', background: '#eee', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#666' }}>
+                                <div style={{ width: '100%', height: '100%', background: 'var(--bg-color-tertiary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--text-color-secondary)' }}>
                                    Existing
                                 </div>
                                 <button type="button" onClick={() => removeExistingImage(imgIdx)} className="remove-image-btn">
@@ -389,7 +388,14 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                                 type="datetime-local" 
                                 value={scheduledAt} 
                                 onChange={(e) => setScheduledAt(e.target.value)} 
-                                style={{ padding: '6px', fontSize: '0.8rem', border: '1px solid var(--border-color)', borderRadius: 4 }}
+                                style={{ 
+                                    padding: '6px', 
+                                    fontSize: '0.8rem', 
+                                    border: '1px solid var(--border-color)', 
+                                    borderRadius: 4,
+                                    background: 'var(--bg-color)',
+                                    color: 'var(--text-color)'
+                                }}
                              />
                         )}
 

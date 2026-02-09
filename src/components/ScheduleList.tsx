@@ -102,7 +102,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
       
       {errorMsg && <div style={{ color: 'var(--error-color)', padding: 20, textAlign: 'center' }}>
           {errorMsg}
-          {debugInfo && <div style={{ fontSize: '0.8rem', marginTop: 10, color: '#999' }}>Debug: {debugInfo}</div>}
+          {debugInfo && <div style={{ fontSize: '0.8rem', marginTop: 10, color: 'var(--text-color-tertiary)' }}>Debug: {debugInfo}</div>}
       </div>}
       
       {(!schedules || schedules.length === 0) && !loading && !errorMsg && 
@@ -124,14 +124,14 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
                 borderRadius: 999, 
                 fontSize: '0.75rem',
                 fontWeight: 700,
-                background: schedule.status === 'PENDING' ? 'var(--nav-hover-bg)' : '#eee',
-                color: schedule.status === 'PENDING' ? 'var(--primary-color)' : '#666'
+                background: schedule.status === 'PENDING' ? 'var(--nav-hover-bg)' : 'var(--bg-color-tertiary)',
+                color: schedule.status === 'PENDING' ? 'var(--primary-color)' : 'var(--text-color-secondary)'
               }}>
                 {schedule.status}
               </span>
             </div>
             
-            <div className="post-text" style={{ fontSize: '1rem', whiteSpace: 'pre-wrap' }}>{schedule.text}</div>
+            <div className="post-text" style={{ fontSize: '1rem', whiteSpace: 'pre-wrap', color: 'var(--text-color)' }}>{schedule.text}</div>
             
             {/* Embed Previews */}
             {schedule.embed && (
@@ -142,10 +142,10 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
                              {schedule.embed.images.map((_: any, i: number) => (
                                  <div key={i} style={{ 
                                      width: 100, height: 100, 
-                                     background: '#eee', 
+                                     background: 'var(--bg-color-tertiary)', 
                                      borderRadius: 8,
                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                     fontSize: '0.8rem', color: '#888'
+                                     fontSize: '0.8rem', color: 'var(--text-color-tertiary)'
                                  }}>
                                     📷 Image
                                  </div>
@@ -158,9 +158,9 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
                         <div style={{ 
                             border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', marginTop: 8
                         }}>
-                             {schedule.embed.external.thumb && <div style={{ height: 100, background: '#eee' }}></div>}
+                             {schedule.embed.external.thumb && <div style={{ height: 100, background: 'var(--bg-color-tertiary)' }}></div>}
                              <div style={{ padding: 10 }}>
-                                 <div style={{ fontWeight: 'bold' }}>{schedule.embed.external.title}</div>
+                                 <div style={{ fontWeight: 'bold', color: 'var(--text-color)' }}>{schedule.embed.external.title}</div>
                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-color-secondary)' }}>{schedule.embed.external.description}</div>
                              </div>
                         </div>

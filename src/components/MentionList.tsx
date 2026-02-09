@@ -57,7 +57,7 @@ export const MentionList = forwardRef((props: any, ref) => {
             {item.avatar ? (
               <img src={item.avatar} alt="" className="avatar-small" />
             ) : (
-              <div className="avatar-small" style={{ background: '#ccc' }} />
+              <div className="avatar-small" />
             )}
             <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{item.displayName || item.handle}</span>

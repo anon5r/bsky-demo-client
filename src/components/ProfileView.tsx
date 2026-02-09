@@ -120,12 +120,12 @@ export function ProfileView({ agent, did, session, onViewFollowers, onViewFollow
              </div>
              
              <div style={{ marginTop: 8 }}>
-                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{profile.displayName || profile.handle}</h2>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-color)' }}>{profile.displayName || profile.handle}</h2>
                 <div style={{ color: 'var(--text-color-secondary)' }}>@{profile.handle}</div>
              </div>
              
              {profile.description && (
-                 <div style={{ marginTop: 12, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
+                 <div style={{ marginTop: 12, whiteSpace: 'pre-wrap', lineHeight: 1.4, color: 'var(--text-color)' }}>
                     {profile.description}
                  </div>
              )}
@@ -150,17 +150,7 @@ export function ProfileView({ agent, did, session, onViewFollowers, onViewFollow
                    <div 
                      key={key}
                      onClick={() => setActiveTab(key)}
-                     style={{ 
-                         flex: 1, 
-                         textAlign: 'center', 
-                         padding: '16px 0', 
-                         cursor: 'pointer',
-                         fontWeight: isActive ? 700 : 500,
-                         color: isActive ? 'var(--text-color)' : 'var(--text-color-secondary)',
-                         borderBottom: isActive ? '3px solid var(--primary-color)' : '3px solid transparent',
-                         transition: 'background-color 0.2s'
-                     }}
-                     className="hover-bg"
+                     className={`tab-item ${isActive ? 'active' : ''}`}
                    >
                        {tab}
                    </div>

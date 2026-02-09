@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.chronosky.app)",
+      "WebFetch(domain:api.bsky.app)",
+      "WebFetch(domain:bsky.social)"
+    ]
+  }
+}

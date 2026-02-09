@@ -159,10 +159,10 @@ export function PostCard({ post, reply, reason, currentDid, onReply, onQuote, on
               <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 12, marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <img src={embedRecord.record.author.avatar} style={{ width: 20, height: 20, borderRadius: '50%' }} />
-                    <span style={{ fontWeight: 700 }}>{embedRecord.record.author.displayName}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--text-color)' }}>{embedRecord.record.author.displayName}</span>
                     <span style={{ color: 'var(--text-color-secondary)' }}>@{embedRecord.record.author.handle}</span>
                   </div>
-                  <div style={{ fontSize: '0.95rem' }}>
+                  <div style={{ fontSize: '0.95rem', color: 'var(--text-color)' }}>
                       {embedRecord.record.value?.text}
                   </div>
               </div>
