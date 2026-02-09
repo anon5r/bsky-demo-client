@@ -604,6 +604,7 @@ textarea:focus {
   font-size: 1.9rem;
   font-weight: 800;
   margin-bottom: 32px;
+  color: var(--text-color);
 }
 .auth-input {
   width: 100%;

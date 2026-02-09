@@ -10,7 +10,7 @@ export default function handler(request: any, response: any) {
   const origin = `${protocol}://${safeHost}`;
 
   const metadata = {
-    client_id: `${origin}/auth/client-metadata`,
+    client_id: `${origin}/client-metadata`,
     client_name: CLIENT_NAME,
     client_uri: origin,
     redirect_uris: [
