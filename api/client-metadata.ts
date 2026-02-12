@@ -1,4 +1,4 @@
-import { OAUTH_SCOPE, CLIENT_NAME } from '../src/lib/auth-config';
+import { OAUTH_SCOPE, CLIENT_NAME } from '../shared/auth-config';
 
 export default function handler(request: any, response: any) {
   const protocol = request.headers['x-forwarded-proto'] || 'https';
