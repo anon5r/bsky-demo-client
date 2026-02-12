@@ -166,20 +166,24 @@ export class ChronoskyClient {
         defaultHeaders['Content-Type'] = 'application/json';
     }
 
-    const finalHeaders = { ...defaultHeaders, ...headers };
+    const finalHeaders = { 
+        ...defaultHeaders, 
+        ...headers,
+        'atproto-resource-did': 'did:web:api.chronosky.app#chronosky_xrpc'
+    };
     const finalBody = (body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array) 
         ? body 
         : (body ? JSON.stringify(body) : undefined);
 
     console.log(`ChronoskyClient: Requesting ${method} ${url.toString()}`);
-    // Note: We cannot see headers added by fetchHandler easily as they are added internally.
-    // But we can verify if the fetchHandler itself is working.
     
     const response = await this.fetchHandler(url.toString(), {
       method: method.toUpperCase(),
       headers: finalHeaders,
       body: finalBody as any,
-    });
+      // @ts-ignore: aud is supported by atproto fetchHandler to skip discovery
+      aud: 'did:web:api.chronosky.app#chronosky_xrpc'
+    } as any);
 
     if (!response.ok) {
       console.error(`ChronoskyClient: Error ${response.status} ${response.statusText}`);
