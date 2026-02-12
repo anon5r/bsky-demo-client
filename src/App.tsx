@@ -15,7 +15,7 @@ import { Layout } from './components/Layout';
 import { Modal } from './components/Modal';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
-import { OAUTH_SCOPE } from './lib/auth-config';
+import { OAUTH_SCOPE } from '../shared/auth-config';
 
 type ViewState = 
   | { type: 'timeline' }
