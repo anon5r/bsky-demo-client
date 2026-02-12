@@ -1,11 +1,4 @@
-const OAUTH_SCOPE = [
-  'atproto',
-  'include:app.bsky.authFullApp?aud=api.bsky.app#bsky_appview',
-  'include:app.chronosky.authClient?aud=chronosky.app#chronosky_xrpc',
-  'blob:image/*',
-  'blob:video/*',
-];
-const CLIENT_NAME = "Bluesky Client Demo App";
+import { OAUTH_SCOPE, CLIENT_NAME } from './_shared/auth-config';
 
 export default function handler(request: any, response: any) {
   const protocol = request.headers['x-forwarded-proto'] || 'https';
