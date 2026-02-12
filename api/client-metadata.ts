@@ -1,10 +1,10 @@
 // Hardcoded configuration to avoid import issues in Vercel Functions
 const OAUTH_SCOPE = [
   'atproto',
-  'atproto:include:did:web:api.bsky.app:app.bsky.authFullApp#bsky_appview',
-  'atproto:include:did:web:api.chronosky.app:app.chronosky.authClient',
-  'atproto:blob:image/*',
-  'atproto:blob:video/*',
+  'include:app.bsky.authFullApp#bsky_appview?aud=did:web:api.bsky.app',
+  'include:app.chronosky.authClient?aud=chronosky.app#chronosky_xrpc',
+  'blob:image/*',
+  'blob:video/*',
 ];
 const CLIENT_NAME = "Bluesky Client Demo App";
 
