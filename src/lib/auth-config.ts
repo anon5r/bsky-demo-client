@@ -1,8 +1,8 @@
 export const OAUTH_SCOPE = [
   'atproto',
-  'atproto:include:did:web:api.bsky.app:app.bsky.authFullApp#bsky_appview',
-  'atproto:include:did:web:api.chronosky.app:app.chronosky.authClient',
-  'atproto:blob:image/*',
-  'atproto:blob:video/*',
+  'include:app.bsky.authFullApp?aud=api.bsky.app#bsky_appview',
+  'include:app.chronosky.authClient?aud=chronosky.app#chronosky_xrpc',
+  'blob:image/*',
+  'blob:video/*',
 ];
 export const CLIENT_NAME = "Bluesky Client Demo App";
