@@ -1,7 +1,7 @@
 const OAUTH_SCOPE = [
   'atproto',
-  'include:app.bsky.authFullApp%23bsky_appview?aud=did:web:api.bsky.app',
-  'include:app.chronosky.authClient%23chronosky_xrpc?aud=did:web:api.chronosky.app',
+  'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
+  'include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc',
   'blob:image/*',
   'blob:video/*',
 ];
@@ -11,11 +11,12 @@ export default function handler(request: any, response: any) {
   const protocol = request.headers['x-forwarded-proto'] || 'https';
   const host = request.headers['x-forwarded-host'] || request.headers['host'];
   const safeHost = Array.isArray(host) ? host[0] : (host || 'localhost:3000');
+  const requestPath = request.url || '/';
   
   const origin = `${protocol}://${safeHost}`;
 
   const metadata = {
-    client_id: `${origin}/client-metadata.json`,
+    client_id: `${origin}${requestPath}`,
     client_name: CLIENT_NAME,
     client_uri: origin,
     redirect_uris: [
