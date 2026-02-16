@@ -64,7 +64,7 @@ export interface CreateScheduleResponse {
 }
 
 export interface ListSchedulesRequest {
-  status?: 'pending' | 'executing' | 'completed' | 'failed' | 'cancelled';
+  status?: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   page?: number;
   limit?: number;
 }

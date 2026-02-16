@@ -1020,7 +1020,7 @@ const response = await callChronoskyAPI(
 
 ```typescript
 interface ListPostsQuery {
-  status?: 'pending' | 'executing' | 'completed' | 'failed' | 'cancelled'; // 投稿ステータスでフィルタ（大文字小文字を問わない）
+  status?: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; // 投稿ステータスでフィルタ（大文字で指定する必要がある）
   page?: number; // ページ番号（デフォルト: 1）
   limit?: number; // ページあたりの取得件数（デフォルト: 20）
 }
