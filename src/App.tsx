@@ -224,11 +224,13 @@ function App() {
                         defaultMode="schedule"
                     />
                 </div>
-                <ScheduleList 
+                {agent && (
+                <ScheduleList
                     key={scheduleUpdateTrigger}
                     session={bskySession}
-                    agent={agent || undefined}
+                    agent={agent}
                 />
+                )}
             </>
             )}
 

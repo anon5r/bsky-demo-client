@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChronoskyClient, type ScheduledPost } from '../lib/chronosky-xrpc-client';
 import { OAuthSession } from '@atproto/oauth-client-browser';
-import { decodeProtectedHeader } from 'jose';
 import { Modal } from './Modal';
 import { PostForm } from './PostForm';
 import { Agent } from '@atproto/api';
@@ -35,22 +34,8 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
     try {
       const tokenInfo = await session.getTokenInfo();
       console.log('ScheduleList: Session Token Info:', tokenInfo);
-      
-      // Decode header to find algorithm
-      let alg = 'unknown';
-      try {
-          const accessToken = (session as any).tokenSet?.access_token;
-          if (accessToken) {
-              const header = decodeProtectedHeader(accessToken);
-              alg = header.alg || 'unknown';
-              console.log('ScheduleList: Token Header:', header);
-          }
-      } catch (e) {
-          console.error("Failed to decode token header", e);
-      }
+      setDebugInfo(`ISS: ${tokenInfo.iss}, AUD: ${tokenInfo.aud}`);
 
-      setDebugInfo(`ISS: ${tokenInfo.iss}, ALG: ${alg}`);
-      
       const response = await client.listPosts({ limit: 50, status: 'pending' });
       setSchedules(response.posts || []);
     } catch (error: any) {

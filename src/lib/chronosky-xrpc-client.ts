@@ -161,22 +161,22 @@ export class ChronoskyClient {
 
     const defaultHeaders: Record<string, string> = {};
     const hasBody = body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array || body;
-    
+
     if (hasBody && !(body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)) {
         defaultHeaders['Content-Type'] = 'application/json';
     }
 
-    const finalHeaders = { 
-        ...defaultHeaders, 
+    const finalHeaders = {
+        ...defaultHeaders,
         ...headers,
         'atproto-resource-did': 'did:web:api.chronosky.app#chronosky_xrpc'
     };
-    const finalBody = (body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array) 
-        ? body 
+    const finalBody = (body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)
+        ? body
         : (body ? JSON.stringify(body) : undefined);
 
     console.log(`ChronoskyClient: Requesting ${method} ${url.toString()}`);
-    
+
     const response = await this.fetchHandler(url.toString(), {
       method: method.toUpperCase(),
       headers: finalHeaders,
