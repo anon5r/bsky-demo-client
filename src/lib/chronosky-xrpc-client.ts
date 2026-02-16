@@ -1,4 +1,5 @@
 const CHRONOSKY_API_URL = import.meta.env.VITE_CHRONOSKY_API_URL || 'https://api.chronosky.app';
+const CHRONOSKY_RESOURCE_DID = 'did:web:api.chronosky.app#chronosky_xrpc';
 
 export interface BlobRef {
   $type: 'blob';
@@ -169,7 +170,7 @@ export class ChronoskyClient {
     const finalHeaders = {
         ...defaultHeaders,
         ...headers,
-        'atproto-resource-did': 'did:web:api.chronosky.app#chronosky_xrpc'
+        'atproto-resource-did': CHRONOSKY_RESOURCE_DID,
     };
     const finalBody = (body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)
         ? body
@@ -181,9 +182,7 @@ export class ChronoskyClient {
       method: method.toUpperCase(),
       headers: finalHeaders,
       body: finalBody as any,
-      // @ts-ignore: aud is supported by atproto fetchHandler to skip discovery
-      aud: 'did:web:api.chronosky.app#chronosky_xrpc'
-    } as any);
+    });
 
     if (!response.ok) {
       console.error(`ChronoskyClient: Error ${response.status} ${response.statusText}`);
