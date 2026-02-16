@@ -1988,7 +1988,6 @@ Chronosky API は `status`
 
 ```typescript
 // どちらも正常に動作します
-'?status=pending'; // ✅ API が自動的に PENDING に変換
 '?status=PENDING'; // ✅ そのまま使用
 
 // 他のステータスも同様
@@ -2000,11 +1999,11 @@ Chronosky API は `status`
 
 **利用可能な Status 値:**
 
-- `pending` / `PENDING` - 予約済み（実行待ち）
-- `executing` / `EXECUTING` - 実行中
-- `completed` / `COMPLETED` - 完了
-- `failed` / `FAILED` - 失敗
-- `cancelled` / `CANCELLED` - キャンセル済み
+- `PENDING` - 予約済み（実行待ち）
+- `EXECUTING` - 実行中
+- `COMPLETED` - 完了
+- `FAILED` - 失敗
+- `CANCELLED` - キャンセル済み
 
 **実装のヒント:**
 サードパーティクライアントでは小文字を使用することで、コードの可読性が向上します。API が自動変換するため、大文字への変換を意識する必要はありません。

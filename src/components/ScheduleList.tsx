@@ -36,7 +36,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
       console.log('ScheduleList: Session Token Info:', tokenInfo);
       setDebugInfo(`ISS: ${tokenInfo.iss}, AUD: ${tokenInfo.aud}`);
 
-      const response = await client.listPosts({ limit: 50, status: 'pending' });
+      const response = await client.listPosts({ limit: 50, status: 'PENDING' });
       setSchedules(response.posts || []);
     } catch (error: any) {
       console.error("Failed to load schedules", error);

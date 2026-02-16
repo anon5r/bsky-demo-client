@@ -233,8 +233,7 @@ curl -X POST https://api.chronosky.example.com/xrpc/app.chronosky.schedule.creat
   - `FAILED` - 失敗
   - `CANCELLED` - キャンセル済み
   - **📝 注意:**
-    status パラメータは大文字・小文字どちらでも指定できます。API が自動的に大文字に変換します。
-    - 例: `?status=pending` → 自動的に `PENDING` として処理
+    status パラメータは大文字で指定する必要があります。
 - `limit` (任意): 取得件数 (デフォルト: 50、最大: 100)
 - `cursor` (任意): ページネーション用カーソル
 
