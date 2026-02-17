@@ -61,6 +61,10 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
       agent.getProfile({ actor: session.did }).then(res => setAvatar(res.data.avatar || null)).catch(() => {});
   }, [agent, session.did]);
 
+  const getBlobUrl = (cid: string) => {
+      return `https://api.chronosky.app/blob/${session.sub}/${cid}`;
+  };
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -337,21 +341,29 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                 {/* Image Previews */}
                 {(images.length > 0 || existingImages.length > 0) && (
                     <div className="image-preview-grid">
-                        {existingImages.map((img, imgIdx) => (
-                            <div key={`existing-${imgIdx}`} className="image-preview-item">
-                                <div style={{ width: '100%', height: '100%', background: 'var(--bg-color-tertiary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--text-color-secondary)' }}>
-                                   Existing
+                        {existingImages.map((img, imgIdx) => {
+                            const cid = img.image?.ref?.$link || img.image?.cid;
+                            const url = cid ? getBlobUrl(cid) : null;
+                            return (
+                                <div key={`existing-${imgIdx}`} className="image-preview-item">
+                                    {url ? (
+                                        <img src={url} alt={img.alt} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12 }} />
+                                    ) : (
+                                        <div style={{ width: '100%', height: '100%', background: 'var(--bg-color-tertiary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--text-color-secondary)' }}>
+                                           Existing
+                                        </div>
+                                    )}
+                                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 4, background: 'rgba(0,0,0,0.5)' }}>
+                                         <button type="button" className="btn-ghost" style={{ width: '100%', color: 'white', fontSize: '0.7rem', padding: 2 }} onClick={() => setEditingAlt({ type: 'existing', index: imgIdx })}>
+                                            {img.alt ? 'Edit ALT' : '+ ALT'}
+                                         </button>
+                                    </div>
+                                    <button type="button" onClick={() => removeExistingImage(imgIdx)} className="remove-image-btn">
+                                      <i className="fa-solid fa-xmark"></i>
+                                    </button>
                                 </div>
-                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 4, background: 'rgba(0,0,0,0.5)' }}>
-                                     <button type="button" className="btn-ghost" style={{ width: '100%', color: 'white', fontSize: '0.7rem', padding: 2 }} onClick={() => setEditingAlt({ type: 'existing', index: imgIdx })}>
-                                        {img.alt ? 'Edit ALT' : '+ ALT'}
-                                     </button>
-                                </div>
-                                <button type="button" onClick={() => removeExistingImage(imgIdx)} className="remove-image-btn">
-                                  <i className="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {images.map((img, imgIdx) => (
                             <div key={`new-${imgIdx}`} className="image-preview-item">
                                 <img src={URL.createObjectURL(img.file)} />
@@ -367,6 +379,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                         ))}
                     </div>
                 )}
+                {/* ... (rest of the component) */}
                 
                 {/* ALT Text Editor Modal/Overlay */}
                 {editingAlt && (

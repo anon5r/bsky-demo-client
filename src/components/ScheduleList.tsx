@@ -16,6 +16,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [editingSchedule, setEditingSchedule] = useState<ScheduledPost | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const client = new ChronoskyClient((url, init) => session.fetchHandler(url, init));
   
@@ -26,6 +27,10 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
       const localISOTime = (new Date(date.getTime() - offset)).toISOString().slice(0, 16);
       return localISOTime;
   }
+
+  const getBlobUrl = (cid: string) => {
+      return `https://api.chronosky.app/blob/${session.sub}/${cid}`;
+  };
 
   async function loadSchedules() {
     setLoading(true);
@@ -124,17 +129,16 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
                     {/* Images */}
                     {schedule.embed.$type === 'app.bsky.embed.images' && schedule.embed.images && (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                             {schedule.embed.images.map((_: any, i: number) => (
-                                 <div key={i} style={{ 
-                                     width: 100, height: 100, 
-                                     background: 'var(--bg-color-tertiary)', 
-                                     borderRadius: 8,
-                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                     fontSize: '0.8rem', color: 'var(--text-color-tertiary)'
-                                 }}>
-                                    📷 Image
-                                 </div>
-                             ))}
+                             {schedule.embed.images.map((img: any, i: number) => {
+                                 const cid = img.image?.ref?.$link || img.image?.cid;
+                                 if (!cid) return null;
+                                 const url = getBlobUrl(cid);
+                                 return (
+                                     <div key={i} className="image-preview-item" style={{ width: 100, height: 100, cursor: 'zoom-in' }} onClick={() => setPreviewImage(url)}>
+                                        <img src={url} alt={img.alt} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                                     </div>
+                                 );
+                             })}
                         </div>
                     )}
                     
@@ -197,12 +201,8 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
                      scheduledAt: formatForInput(editingSchedule.scheduledAt),
                      images: (editingSchedule.embed?.$type === 'app.bsky.embed.images') ? editingSchedule.embed.images : [],
                      langs: editingSchedule.langs,
-                     // labels: editingSchedule.labels?.values // SelfLabels structure is complex, simplified in client?
-                     // Let's assume labels are compatible or just empty for now.
-                     // The client interface has labels?: SelfLabels. PostForm expects string[].
                      labels: editingSchedule.labels?.values?.map((v: { val: string }) => v.val) || [],
-                     disableQuotes: editingSchedule.disableQuotePosts // interface mismatch? ScheduledPost vs CreateScheduleRequest
-                     // Check ScheduledPost definition again. It has disableQuotePosts?: boolean
+                     disableQuotes: editingSchedule.disableQuotePosts
                  }}
                  onCancel={() => setEditingSchedule(null)}
                  onPostCreated={() => {
@@ -210,6 +210,14 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
                      loadSchedules();
                  }}
              />
+          </Modal>
+      )}
+
+      {previewImage && (
+          <Modal isOpen={true} onClose={() => setPreviewImage(null)} title="Image Preview">
+              <div style={{ textAlign: 'center' }}>
+                  <img src={previewImage} style={{ maxWidth: '100%', maxHeight: '80vh', borderRadius: 8 }} />
+              </div>
           </Modal>
       )}
     </div>
