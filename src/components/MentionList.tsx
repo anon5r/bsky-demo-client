@@ -6,7 +6,7 @@ export const MentionList = forwardRef((props: any, ref) => {
   const selectItem = (index: number) => {
     const item = props.items[index]
     if (item) {
-      props.command({ id: item.handle, label: item.handle })
+      props.command({ id: item.handle, label: item.handle, did: item.did })
     }
   }
 

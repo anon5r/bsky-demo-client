@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ChronoskyClient } from '../lib/chronosky-xrpc-client';
-import { Agent, RichText } from '@atproto/api';
+import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 import imageCompression from 'browser-image-compression';
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Mention from '@tiptap/extension-mention'
-import Link from '@tiptap/extension-link'
-import { getMentionSuggestion } from '../lib/tiptap-extensions'
+import { CustomLink, CustomMention, Hashtag, Cashtag } from '../lib/tiptap-extensions'
+import { tiptapToRichText } from '../lib/bluesky-richtext'
 
 interface PostFormProps {
   agent: Agent;
@@ -71,15 +70,10 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
       Placeholder.configure({
         placeholder: replyTo ? 'Post your reply' : "What's happening?",
       }),
-      Link.configure({
-        openOnClick: false,
-      }),
-      Mention.configure({
-        HTMLAttributes: {
-          class: 'mention',
-        },
-        suggestion: getMentionSuggestion(agent),
-      }),
+      CustomLink,
+      CustomMention(agent),
+      Hashtag,
+      Cashtag,
     ],
     content: initialData?.text || '',
   })
@@ -130,16 +124,12 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
     setErrorMsg('');
 
     try {
-      const text = editor.getText(); // Get plain text (mentions will be @handle)
+      const rt = await tiptapToRichText(editor, agent);
       
-      if (!text.trim() && images.length === 0 && existingImages.length === 0 && !quotePost) {
+      if (!rt.text.trim() && images.length === 0 && existingImages.length === 0 && !quotePost) {
           setStatus('idle');
           return;
       }
-
-      // RichText Processing
-      const rt = new RichText({ text });
-      await rt.detectFacets(agent); // Detect mentions, links, tags
 
       let embed: any = undefined;
       const uploadedImages: any[] = [];
