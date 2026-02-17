@@ -35,7 +35,6 @@ const LABELS = [
   { val: 'nudity', label: 'Nudity' },
   { val: 'porn', label: 'Porn' },
   { val: 'graphic-media', label: 'Graphic Media' },
-  { val: 'violence', label: 'Violence' },
 ];
 
 const LANGUAGES = [
@@ -213,21 +212,20 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
              replyRef = { root, parent };
         }
 
+        const threadgateRules = threadgate.length > 0 
+            ? threadgate.map(rule => ({ $type: `app.bsky.feed.threadgate#${rule}Rule` as any })) 
+            : undefined;
+
         if (postId) {
             // Update existing scheduled post
             await client.updatePost({
                 id: postId,
-                posts: [{
-                   text: rt.text,
-                   facets: rt.facets,
-                   embed: scheduleEmbed,
-                   labels: formattedLabels,
-                   langs: languages.length > 0 ? languages : undefined,
-                   reply: replyRef
-                }],
+                text: rt.text,
+                facets: rt.facets,
+                embed: scheduleEmbed,
+                labels: formattedLabels,
+                langs: languages.length > 0 ? languages : undefined,
                 scheduledAt: new Date(scheduledAt).toISOString(),
-                threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,
-                disableQuotePosts: disableQuotes
             });
         } else {
             // Create new
@@ -241,7 +239,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                 reply: replyRef
               }],
               scheduledAt: new Date(scheduledAt).toISOString(),
-              threadgateRules: threadgate.length > 0 ? threadgate as any : undefined,
+              threadgateRules: threadgateRules as any,
               disableQuotePosts: disableQuotes
             });
         }

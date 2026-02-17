@@ -1,5 +1,4 @@
 const CHRONOSKY_API_URL = import.meta.env.VITE_CHRONOSKY_API_URL || 'https://api.chronosky.app';
-const CHRONOSKY_RESOURCE_DID = 'did:web:api.chronosky.app#chronosky_xrpc';
 
 export interface BlobRef {
   $type: 'blob';
@@ -10,14 +9,6 @@ export interface BlobRef {
 
 export interface UploadBlobResponse {
   blob: BlobRef;
-}
-
-export interface ContentLabels {
-  sexual?: boolean;
-  nudity?: boolean;
-  porn?: boolean;
-  'graphic-media'?: boolean;
-  violence?: boolean;
 }
 
 export interface SelfLabels {
@@ -31,27 +22,23 @@ export interface ThreadPostItem {
   facets?: any[];
   labels?: SelfLabels;
   reply?: {
-      root: { uri: string; cid: string };
-      parent: { uri: string; cid: string };
+    root: { uri: string; cid: string };
+    parent: { uri: string; cid: string };
   };
-  embed?: {
-    $type: string;
-    images?: Array<{
-      alt: string;
-      image: BlobRef;
-    }>;
-    [key: string]: any;
-  };
-  [key: string]: any;
+  embed?: any;
 }
 
-// Type definitions based on the NEW guide
 export interface CreateScheduleRequest {
-  text?: string; // Simple single post content
+  text?: string;
   posts?: ThreadPostItem[];
   scheduledAt: string;
   parentPostId?: string;
-  threadgateRules?: Array<'mention' | 'follower' | 'following'>;
+  threadgateRules?: Array<
+    | { $type: 'app.bsky.feed.threadgate#mentionRule' }
+    | { $type: 'app.bsky.feed.threadgate#followerRule' }
+    | { $type: 'app.bsky.feed.threadgate#followingRule' }
+    | { $type: 'app.bsky.feed.threadgate#listRule'; list: string }
+  >;
   disableQuotePosts?: boolean;
 }
 
@@ -59,8 +46,6 @@ export interface CreateScheduleResponse {
   success: boolean;
   postIds: string[];
   scheduledAt: string;
-  status: string;
-  postCount: number;
 }
 
 export interface ListSchedulesRequest {
@@ -71,7 +56,6 @@ export interface ListSchedulesRequest {
 
 export interface ScheduledPost {
   id: string;
-  userId: string;
   text: string;
   langs?: string[];
   scheduledAt: string;
@@ -83,24 +67,7 @@ export interface ScheduledPost {
   facets?: any[];
   labels?: SelfLabels;
   disableQuotePosts?: boolean;
-  embed?: {
-    $type: string;
-    images?: Array<{
-      alt: string;
-      image: BlobRef;
-    }>;
-    external?: {
-      uri: string;
-      title: string;
-      description: string;
-      thumb?: BlobRef;
-    };
-    record?: {
-      uri: string;
-      cid: string;
-    };
-    [key: string]: any;
-  };
+  embed?: any;
 }
 
 export interface ListSchedulesResponse {
@@ -113,15 +80,17 @@ export interface ListSchedulesResponse {
   };
 }
 
-export interface UpdateScheduleRequest {
+export interface UpdatePostRequest {
   id: string;
-  posts?: ThreadPostItem[];
+  text?: string;
+  langs?: string[];
   scheduledAt?: string;
-  threadgateRules?: Array<'mention' | 'follower' | 'following'>;
-  disableQuotePosts?: boolean;
+  facets?: any[];
+  embed?: any;
+  labels?: SelfLabels;
 }
 
-export interface UpdateScheduleResponse {
+export interface UpdatePostResponse {
   post: ScheduledPost;
 }
 
@@ -131,11 +100,6 @@ export interface DeleteScheduleRequest {
 
 export interface DeleteScheduleResponse {
   success: boolean;
-}
-
-export interface ErrorResponse {
-  error: string;
-  message: string;
 }
 
 /**
@@ -154,29 +118,36 @@ export class ChronoskyClient {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(method: string, endpoint: string, body?: any, params?: URLSearchParams, headers: Record<string, string> = {}): Promise<T> {
+  private async request<T>(
+    method: string,
+    endpoint: string,
+    body?: any,
+    params?: URLSearchParams,
+    headers: Record<string, string> = {}
+  ): Promise<T> {
     const url = new URL(`${this.baseUrl}/xrpc/${endpoint}`);
     if (params) {
       url.search = params.toString();
     }
 
     const defaultHeaders: Record<string, string> = {};
-    const hasBody = body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array || body;
+    const hasBody =
+      body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array || body;
 
     if (hasBody && !(body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)) {
-        defaultHeaders['Content-Type'] = 'application/json';
+      defaultHeaders['Content-Type'] = 'application/json';
     }
 
     const finalHeaders = {
-        ...defaultHeaders,
-        ...headers,
-        'atproto-resource-did': CHRONOSKY_RESOURCE_DID,
+      ...defaultHeaders,
+      ...headers,
     };
-    const finalBody = (body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array)
+    const finalBody =
+      body instanceof Blob || body instanceof ArrayBuffer || body instanceof Uint8Array
         ? body
-        : (body ? JSON.stringify(body) : undefined);
-
-    console.log(`ChronoskyClient: Requesting ${method} ${url.toString()}`);
+        : body
+        ? JSON.stringify(body)
+        : undefined;
 
     const response = await this.fetchHandler(url.toString(), {
       method: method.toUpperCase(),
@@ -185,9 +156,9 @@ export class ChronoskyClient {
     });
 
     if (!response.ok) {
-      console.error(`ChronoskyClient: Error ${response.status} ${response.statusText}`);
-      const errorData = await response.json().catch(() => ({ error: 'UNKNOWN', message: response.statusText }));
-      console.error('ChronoskyClient: Error Details:', errorData);
+      const errorData = await response
+        .json()
+        .catch(() => ({ error: 'UNKNOWN', message: response.statusText }));
       const error = new Error(errorData.message || `API Error: ${response.status}`);
       (error as any).error = errorData.error;
       (error as any).status = response.status;
@@ -198,13 +169,9 @@ export class ChronoskyClient {
   }
 
   async uploadBlob(blob: Blob): Promise<UploadBlobResponse> {
-    return this.request(
-      'POST',
-      'app.chronosky.media.uploadBlob',
-      blob,
-      undefined,
-      { 'Content-Type': blob.type }
-    );
+    return this.request('POST', 'app.chronosky.media.uploadBlob', blob, undefined, {
+      'Content-Type': blob.type,
+    });
   }
 
   async createPost(input: CreateScheduleRequest): Promise<CreateScheduleResponse> {
@@ -220,11 +187,12 @@ export class ChronoskyClient {
     return this.request('GET', 'app.chronosky.schedule.listPosts', undefined, params);
   }
 
-  async updatePost(input: UpdateScheduleRequest): Promise<UpdateScheduleResponse> {
+  async updatePost(input: UpdatePostRequest): Promise<UpdatePostResponse> {
     return this.request('POST', 'app.chronosky.schedule.updatePost', input);
   }
 
-  async deletePost(input: DeleteScheduleRequest): Promise<DeleteScheduleResponse> {
+  async deletePost(input: { id: string }): Promise<DeleteScheduleResponse> {
     return this.request('POST', 'app.chronosky.schedule.deletePost', input);
   }
 }
+
