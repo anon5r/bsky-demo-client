@@ -275,6 +275,7 @@ function App() {
                     <Search 
                         agent={agent} 
                         onSelectActor={handleGoToProfile} 
+                        onSelectPost={handleGoToThread}
                     />
                 </>
             )}

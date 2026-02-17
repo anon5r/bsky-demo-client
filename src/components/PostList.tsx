@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
 import { Modal } from './Modal';
@@ -7,32 +7,71 @@ import { PostCard } from './PostCard';
 
 interface PostListProps {
   agent: Agent;
-  did: string;
-  filter?: 'timeline' | 'author';
+  did: string; // Current user DID
+  filter?: 'timeline' | 'author' | 'feed' | 'list';
+  id?: string; // Target ID (DID for author, URI for feed/list)
   session: OAuthSession;
   onPostClick?: (post: any) => void;
 }
 
-export function PostList({ agent, did, filter = 'timeline', session, onPostClick }: PostListProps) {
+export function PostList({ agent, did, filter = 'timeline', id, session, onPostClick }: PostListProps) {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(true);
   
+  // Language Filter State (Default: all)
+  const [filterLangs, setFilterLangs] = useState<string[]>([]); // Empty means all
+
   // Modal states
   const [replyPost, setReplyPost] = useState<any>(null);
   const [quotePost, setQuotePost] = useState<any>(null);
 
-  async function loadPosts() {
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastPostElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadPosts();
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, hasMore]);
+
+  async function loadPosts(reset = false) {
+    if (loading) return;
     setLoading(true);
     try {
-      let feed: any[] = [];
+      const currentCursor = reset ? undefined : cursor;
+      let res;
+      
       if (filter === 'author') {
-          const response = await agent.getAuthorFeed({ actor: did, limit: 50 });
-          feed = response.data.feed;
+          res = await agent.getAuthorFeed({ actor: id || did, limit: 30, cursor: currentCursor });
+      } else if (filter === 'feed') {
+          if (!id) throw new Error("Feed URI required");
+          res = await agent.app.bsky.feed.getFeed({ feed: id, limit: 30, cursor: currentCursor });
+      } else if (filter === 'list') {
+          if (!id) throw new Error("List URI required");
+          res = await agent.app.bsky.feed.getListFeed({ list: id, limit: 30, cursor: currentCursor });
       } else {
-          const response = await agent.getTimeline({ limit: 50 });
-          feed = response.data.feed;
+          res = await agent.getTimeline({ limit: 30, cursor: currentCursor });
       }
-      setPosts(feed);
+      
+      const newPosts = res.data.feed;
+      
+      if (reset) {
+          setPosts(newPosts);
+      } else {
+          setPosts(prev => [...prev, ...newPosts]);
+      }
+      
+      setCursor(res.data.cursor);
+      if (!res.data.cursor || newPosts.length === 0) {
+          setHasMore(false);
+      } else {
+          setHasMore(true);
+      }
     } catch (e) {
       console.error("Failed to load posts", e);
     } finally {
@@ -41,15 +80,16 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
   }
 
   useEffect(() => {
-    if (did) {
-        loadPosts();
-    }
-  }, [agent, did, filter]);
+    // Reset and load when filter or id changes
+    setCursor(undefined);
+    setHasMore(true);
+    loadPosts(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, filter]); // Intentionally excluding 'agent' to avoid re-renders if instance changes
 
   async function deletePost(uri: string) {
     if (!confirm("Are you sure you want to delete this post?")) return;
     try {
-       // Using low-level deleteRecord to bypass local session check
        const rkey = uri.split('/').pop();
        await agent.com.atproto.repo.deleteRecord({
            repo: session.sub,
@@ -69,16 +109,27 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
     const likeUri = item.post.viewer?.like;
 
     try {
+      // Optimistic update
+      const newPosts = [...posts];
+      const idx = newPosts.findIndex(p => p.post.uri === uri);
+      if (idx === -1) return;
+
       if (likeUri) {
+        newPosts[idx].post.viewer.like = undefined;
+        newPosts[idx].post.likeCount = (newPosts[idx].post.likeCount || 0) - 1;
+        setPosts(newPosts);
+
         const rkey = likeUri.split('/').pop();
         await agent.com.atproto.repo.deleteRecord({
             repo: session.sub,
             collection: 'app.bsky.feed.like',
             rkey: rkey!
         });
-        item.post.viewer.like = undefined;
-        item.post.likeCount = (item.post.likeCount || 0) - 1;
       } else {
+        newPosts[idx].post.viewer.like = 'pending'; // Temporary
+        newPosts[idx].post.likeCount = (newPosts[idx].post.likeCount || 0) + 1;
+        setPosts(newPosts);
+
         const res = await agent.com.atproto.repo.createRecord({
             repo: session.sub,
             collection: 'app.bsky.feed.like',
@@ -87,12 +138,20 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
                 createdAt: new Date().toISOString()
             }
         });
-        item.post.viewer.like = res.data.uri;
-        item.post.likeCount = (item.post.likeCount || 0) + 1;
+        
+        // Update with real URI
+        setPosts(prev => {
+            const updateIdx = prev.findIndex(p => p.post.uri === uri);
+            if (updateIdx === -1) return prev;
+            const updated = [...prev];
+            updated[updateIdx].post.viewer.like = res.data.uri;
+            return updated;
+        });
       }
-      setPosts([...posts]);
     } catch (e) {
       console.error("Like failed", e);
+      // Revert on error would be ideal here
+      loadPosts(true); // Brute force sync
     }
   }
 
@@ -102,16 +161,27 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
     const repostUri = item.post.viewer?.repost;
 
     try {
+      // Optimistic update
+      const newPosts = [...posts];
+      const idx = newPosts.findIndex(p => p.post.uri === uri);
+      if (idx === -1) return;
+
       if (repostUri) {
+        newPosts[idx].post.viewer.repost = undefined;
+        newPosts[idx].post.repostCount = (newPosts[idx].post.repostCount || 0) - 1;
+        setPosts(newPosts);
+
         const rkey = repostUri.split('/').pop();
         await agent.com.atproto.repo.deleteRecord({
             repo: session.sub,
             collection: 'app.bsky.feed.repost',
             rkey: rkey!
         });
-        item.post.viewer.repost = undefined;
-        item.post.repostCount = (item.post.repostCount || 0) - 1;
       } else {
+        newPosts[idx].post.viewer.repost = 'pending';
+        newPosts[idx].post.repostCount = (newPosts[idx].post.repostCount || 0) + 1;
+        setPosts(newPosts);
+
         const res = await agent.com.atproto.repo.createRecord({
             repo: session.sub,
             collection: 'app.bsky.feed.repost',
@@ -120,16 +190,32 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
                 createdAt: new Date().toISOString()
             }
         });
-        item.post.viewer.repost = res.data.uri;
-        item.post.repostCount = (item.post.repostCount || 0) + 1;
+
+        setPosts(prev => {
+            const updateIdx = prev.findIndex(p => p.post.uri === uri);
+            if (updateIdx === -1) return prev;
+            const updated = [...prev];
+            updated[updateIdx].post.viewer.repost = res.data.uri;
+            return updated;
+        });
       }
-      setPosts([...posts]);
     } catch (e) {
       console.error("Repost failed", e);
+      loadPosts(true);
     }
   }
 
-  if (loading && posts.length === 0) {
+  // Filter posts client-side if langs are set
+  // This is a naive implementation; ideal is server-side custom feed
+  const visiblePosts = filterLangs.length > 0 
+    ? posts.filter(p => {
+        const langs = p.post.record?.langs;
+        if (!langs) return true; // Show posts with no lang info
+        return langs.some((l: string) => filterLangs.includes(l));
+    }) 
+    : posts;
+
+  if (posts.length === 0 && loading) {
       return <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-color-secondary)' }}>Loading...</div>;
   }
 
@@ -139,21 +225,71 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
 
   return (
     <div>
-        {posts.map((item) => (
-            <PostCard 
-               key={item.post.uri}
-               post={item.post}
-               reply={item.reply}
-               reason={item.reason}
-               currentDid={session.sub}
-               onReply={() => setReplyPost(item.post)}
-               onQuote={() => setQuotePost(item.post)}
-               onDelete={deletePost}
-               onToggleLike={() => toggleLike(item)}
-               onToggleRepost={() => toggleRepost(item)}
-               onClick={onPostClick}
-            />
-        ))}
+        {/* Simple Lang Filter Toggle for Demo */}
+        <div style={{ padding: '0 16px', marginBottom: 10, display: 'flex', gap: 10, fontSize: '0.8rem' }}>
+             <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <input 
+                    type="checkbox" 
+                    checked={filterLangs.includes('ja')} 
+                    onChange={(e) => {
+                        if (e.target.checked) setFilterLangs([...filterLangs, 'ja']);
+                        else setFilterLangs(filterLangs.filter(l => l !== 'ja'));
+                    }} 
+                />
+                Japanese Only
+             </label>
+             <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <input 
+                    type="checkbox" 
+                    checked={filterLangs.includes('en')} 
+                    onChange={(e) => {
+                        if (e.target.checked) setFilterLangs([...filterLangs, 'en']);
+                        else setFilterLangs(filterLangs.filter(l => l !== 'en'));
+                    }} 
+                />
+                English Only
+             </label>
+        </div>
+
+        {visiblePosts.map((item, index) => {
+            if (visiblePosts.length === index + 1) {
+                return (
+                    <div ref={lastPostElementRef} key={`${item.post.uri}-${index}`}>
+                        <PostCard 
+                            post={item.post}
+                            reply={item.reply}
+                            reason={item.reason}
+                            currentDid={session.sub}
+                            onReply={() => setReplyPost(item.post)}
+                            onQuote={() => setQuotePost(item.post)}
+                            onDelete={deletePost}
+                            onToggleLike={() => toggleLike(item)}
+                            onToggleRepost={() => toggleRepost(item)}
+                            onClick={onPostClick}
+                        />
+                    </div>
+                );
+            } else {
+                return (
+                    <PostCard 
+                       key={`${item.post.uri}-${index}`}
+                       post={item.post}
+                       reply={item.reply}
+                       reason={item.reason}
+                       currentDid={session.sub}
+                       onReply={() => setReplyPost(item.post)}
+                       onQuote={() => setQuotePost(item.post)}
+                       onDelete={deletePost}
+                       onToggleLike={() => toggleLike(item)}
+                       onToggleRepost={() => toggleRepost(item)}
+                       onClick={onPostClick}
+                    />
+                );
+            }
+        })}
+
+        {loading && <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-color-secondary)' }}>Loading more...</div>}
+        {!hasMore && <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-color-tertiary)', fontSize: '0.9rem' }}>You've reached the end!</div>}
 
         {/* Reply Modal */}
         <Modal isOpen={!!replyPost} onClose={() => setReplyPost(null)} title="Reply">
@@ -163,7 +299,7 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
                    session={session} 
                    replyTo={replyPost} 
                    onCancel={() => setReplyPost(null)}
-                   onPostCreated={() => { setReplyPost(null); loadPosts(); }}
+                   onPostCreated={() => { setReplyPost(null); loadPosts(true); }} // Reload to see reply
                />
            )}
         </Modal>
@@ -176,7 +312,7 @@ export function PostList({ agent, did, filter = 'timeline', session, onPostClick
                    session={session} 
                    quotePost={quotePost} 
                    onCancel={() => setQuotePost(null)}
-                   onPostCreated={() => { setQuotePost(null); loadPosts(); }}
+                   onPostCreated={() => { setQuotePost(null); loadPosts(true); }}
                />
            )}
         </Modal>

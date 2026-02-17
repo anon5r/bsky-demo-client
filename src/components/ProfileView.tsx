@@ -15,6 +15,7 @@ export function ProfileView({ agent, did, session, onViewFollowers, onViewFollow
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('posts');
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -30,6 +31,48 @@ export function ProfileView({ agent, did, session, onViewFollowers, onViewFollow
     } finally {
       setLoading(false);
     }
+  }
+
+  async function toggleMute() {
+      try {
+          if (profile.viewer?.muted) {
+              await agent.app.bsky.graph.unmuteActor({ actor: profile.did });
+              setProfile((prev: any) => ({ ...prev, viewer: { ...prev.viewer, muted: false } }));
+          } else {
+              await agent.app.bsky.graph.muteActor({ actor: profile.did });
+              setProfile((prev: any) => ({ ...prev, viewer: { ...prev.viewer, muted: true } }));
+          }
+          setShowMenu(false);
+      } catch (e) {
+          console.error("Mute toggle failed", e);
+      }
+  }
+
+  async function toggleBlock() {
+      try {
+          if (profile.viewer?.blocking) {
+              const rkey = profile.viewer.blocking.split('/').pop();
+              await agent.com.atproto.repo.deleteRecord({
+                  repo: session.sub,
+                  collection: 'app.bsky.graph.block',
+                  rkey: rkey!
+              });
+              setProfile((prev: any) => ({ ...prev, viewer: { ...prev.viewer, blocking: undefined } }));
+          } else {
+              const res = await agent.com.atproto.repo.createRecord({
+                  repo: session.sub,
+                  collection: 'app.bsky.graph.block',
+                  record: {
+                      subject: profile.did,
+                      createdAt: new Date().toISOString()
+                  }
+              });
+              setProfile((prev: any) => ({ ...prev, viewer: { ...prev.viewer, blocking: res.data.uri } }));
+          }
+          setShowMenu(false);
+      } catch (e) {
+          console.error("Block toggle failed", e);
+      }
   }
 
   async function toggleFollow() {
@@ -98,21 +141,39 @@ export function ProfileView({ agent, did, session, onViewFollowers, onViewFollow
                 </div>
                 
                 {/* Action Button */}
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
                     {!isMe ? (
-                    <button 
-                        className="btn" 
-                        onClick={toggleFollow}
-                        style={{ 
-                            backgroundColor: profile.viewer?.following ? 'transparent' : 'var(--text-color)',
-                            color: profile.viewer?.following ? 'var(--text-color)' : 'var(--bg-color)',
-                            border: `1px solid ${profile.viewer?.following ? 'var(--border-color-dark)' : 'transparent'}`,
-                            height: 36,
-                            padding: '0 16px'
-                        }}
-                    >
-                        {profile.viewer?.following ? 'Following' : 'Follow'}
-                    </button>
+                    <>
+                        <button 
+                            className="btn" 
+                            onClick={toggleFollow}
+                            style={{ 
+                                backgroundColor: profile.viewer?.following ? 'transparent' : 'var(--text-color)',
+                                color: profile.viewer?.following ? 'var(--text-color)' : 'var(--bg-color)',
+                                border: `1px solid ${profile.viewer?.following ? 'var(--border-color-dark)' : 'transparent'}`,
+                                height: 36,
+                                padding: '0 16px'
+                            }}
+                        >
+                            {profile.viewer?.following ? 'Following' : 'Follow'}
+                        </button>
+                        
+                        <div style={{ position: 'relative' }}>
+                            <button className="btn-ghost" onClick={() => setShowMenu(!showMenu)} style={{ height: 36, width: 36, borderRadius: '50%', border: '1px solid var(--border-color)' }}>
+                                <i className="fa-solid fa-ellipsis"></i>
+                            </button>
+                            {showMenu && (
+                                <div style={{ position: 'absolute', right: 0, top: 40, background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 5, minWidth: 150, zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                                    <button className="btn-ghost" onClick={toggleMute} style={{ width: '100%', textAlign: 'left', padding: '8px 12px' }}>
+                                        {profile.viewer?.muted ? 'Unmute' : 'Mute'} @{profile.handle}
+                                    </button>
+                                    <button className="btn-ghost" onClick={toggleBlock} style={{ width: '100%', textAlign: 'left', padding: '8px 12px', color: 'var(--error-color)' }}>
+                                        {profile.viewer?.blocking ? 'Unblock' : 'Block'} @{profile.handle}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </>
                     ) : (
                     <button className="btn btn-secondary" style={{ height: 36, padding: '0 16px' }}>Edit Profile</button>
                     )}
@@ -159,7 +220,15 @@ export function ProfileView({ agent, did, session, onViewFollowers, onViewFollow
        </div>
 
        <div>
-          {activeTab === 'posts' && <PostList agent={agent} did={did} filter="author" session={session} />}
+          {activeTab === 'posts' && (
+              <PostList 
+                  agent={agent} 
+                  did={session.sub} 
+                  id={did} 
+                  filter="author" 
+                  session={session} 
+              />
+          )}
           {activeTab !== 'posts' && (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-color-secondary)' }}>
                   {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} tab is coming soon.

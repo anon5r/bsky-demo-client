@@ -43,8 +43,8 @@ const LANGUAGES = [
 ];
 
 export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', replyTo, quotePost, onCancel, initialData, postId }: PostFormProps) {
-  const [images, setImages] = useState<File[]>([]);
-  const [existingImages, setExistingImages] = useState<any[]>(initialData?.images || []);
+  const [images, setImages] = useState<{ file: File; alt: string }[]>([]);
+  const [existingImages, setExistingImages] = useState<{ image: any; alt: string }[]>(initialData?.images?.map(img => ({ image: img.image || img, alt: img.alt || '' })) || []);
   const [labels, setLabels] = useState<string[]>(initialData?.labels || []);
   const [languages, setLanguages] = useState<string[]>(initialData?.langs || ['ja']);
   const [scheduledAt, setScheduledAt] = useState(initialData?.scheduledAt || '');
@@ -55,6 +55,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
   const [mode, setMode] = useState<'now' | 'schedule'>(defaultMode);
   const [showOptions, setShowOptions] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [editingAlt, setEditingAlt] = useState<{ type: 'new' | 'existing', index: number } | null>(null);
 
   useEffect(() => {
       agent.getProfile({ actor: session.did }).then(res => setAvatar(res.data.avatar || null)).catch(() => {});
@@ -83,7 +84,7 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newImages = Array.from(e.target.files);
+      const newImages = Array.from(e.target.files).map(file => ({ file, alt: '' }));
       if (images.length + existingImages.length + newImages.length > 4) {
         alert("Max 4 images per post.");
         return;
@@ -98,6 +99,18 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
   
   const removeExistingImage = (imgIndex: number) => {
       setExistingImages(existingImages.filter((_, i) => i !== imgIndex));
+  };
+
+  const updateAltText = (type: 'new' | 'existing', index: number, text: string) => {
+      if (type === 'new') {
+          const newImages = [...images];
+          newImages[index].alt = text;
+          setImages(newImages);
+      } else {
+          const newExisting = [...existingImages];
+          newExisting[index].alt = text;
+          setExistingImages(newExisting);
+      }
   };
 
   async function compressImage(file: File): Promise<Blob> {
@@ -133,13 +146,13 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
          } else {
              // Normal post
              for (const img of existingImages) {
-                 uploadedImages.push(img);
+                 uploadedImages.push({ image: img.image, alt: img.alt });
              }
 
              for (const img of images) {
-                const compressed = await compressImage(img);
+                const compressed = await compressImage(img.file);
                 const { data } = await agent.uploadBlob(compressed, { encoding: compressed.type });
-                uploadedImages.push({ image: data.blob, alt: "Image" });
+                uploadedImages.push({ image: data.blob, alt: img.alt });
              }
              embed = { $type: 'app.bsky.embed.images', images: uploadedImages };
          }
@@ -171,13 +184,13 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
         
         let scheduleEmbed: any = undefined;
         if (images.length > 0 || existingImages.length > 0) {
-            const uploaded: { alt: string; image: any }[] = [...existingImages];
+            const uploaded: { alt: string; image: any }[] = existingImages.map(img => ({ alt: img.alt, image: img.image }));
             
             for (const img of images) {
-              const compressed = await compressImage(img);
+              const compressed = await compressImage(img.file);
               const uploadRes = await client.uploadBlob(compressed as Blob);
               if (!uploadRes || !uploadRes.blob) throw new Error("Failed to upload image");
-              uploaded.push({ alt: "Image", image: uploadRes.blob });
+              uploaded.push({ alt: img.alt, image: uploadRes.blob });
             }
             scheduleEmbed = { $type: 'app.bsky.embed.images', images: uploaded };
         }
@@ -324,10 +337,15 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                 {/* Image Previews */}
                 {(images.length > 0 || existingImages.length > 0) && (
                     <div className="image-preview-grid">
-                        {existingImages.map((_, imgIdx) => (
+                        {existingImages.map((img, imgIdx) => (
                             <div key={`existing-${imgIdx}`} className="image-preview-item">
                                 <div style={{ width: '100%', height: '100%', background: 'var(--bg-color-tertiary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--text-color-secondary)' }}>
                                    Existing
+                                </div>
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 4, background: 'rgba(0,0,0,0.5)' }}>
+                                     <button type="button" className="btn-ghost" style={{ width: '100%', color: 'white', fontSize: '0.7rem', padding: 2 }} onClick={() => setEditingAlt({ type: 'existing', index: imgIdx })}>
+                                        {img.alt ? 'Edit ALT' : '+ ALT'}
+                                     </button>
                                 </div>
                                 <button type="button" onClick={() => removeExistingImage(imgIdx)} className="remove-image-btn">
                                   <i className="fa-solid fa-xmark"></i>
@@ -336,12 +354,36 @@ export function PostForm({ agent, session, onPostCreated, defaultMode = 'now', r
                         ))}
                         {images.map((img, imgIdx) => (
                             <div key={`new-${imgIdx}`} className="image-preview-item">
-                                <img src={URL.createObjectURL(img)} />
+                                <img src={URL.createObjectURL(img.file)} />
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 4, background: 'rgba(0,0,0,0.5)' }}>
+                                     <button type="button" className="btn-ghost" style={{ width: '100%', color: 'white', fontSize: '0.7rem', padding: 2 }} onClick={() => setEditingAlt({ type: 'new', index: imgIdx })}>
+                                        {img.alt ? 'Edit ALT' : '+ ALT'}
+                                     </button>
+                                </div>
                                 <button type="button" onClick={() => removeImage(imgIdx)} className="remove-image-btn">
                                   <i className="fa-solid fa-xmark"></i>
                                 </button>
                             </div>
                         ))}
+                    </div>
+                )}
+                
+                {/* ALT Text Editor Modal/Overlay */}
+                {editingAlt && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ background: 'var(--card-bg)', padding: 20, borderRadius: 12, width: '90%', maxWidth: 400 }}>
+                            <h3 style={{ marginTop: 0 }}>Description</h3>
+                            <textarea 
+                                autoFocus
+                                value={editingAlt.type === 'new' ? images[editingAlt.index].alt : existingImages[editingAlt.index].alt}
+                                onChange={(e) => updateAltText(editingAlt.type, editingAlt.index, e.target.value)}
+                                style={{ width: '100%', height: 100, marginBottom: 10, padding: 8, borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+                                placeholder="Describe this image for visually impaired users..."
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                                <button type="button" className="btn-primary" onClick={() => setEditingAlt(null)}>Done</button>
+                            </div>
+                        </div>
                     </div>
                 )}
 

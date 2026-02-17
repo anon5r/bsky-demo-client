@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Agent } from '@atproto/api';
 
 interface NotificationListProps {
@@ -8,21 +8,49 @@ interface NotificationListProps {
 export function NotificationList({ agent }: NotificationListProps) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(true);
 
-  useEffect(() => {
-    loadNotifications();
-    // Mark as read on unmount or after load? 
-    // Usually on load + delay or manual. For simplicity, just load.
-    return () => {
-        agent.updateSeenNotifications(new Date().toISOString()).catch(console.error);
-    };
-  }, [agent]);
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadNotifications();
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, hasMore]);
 
-  async function loadNotifications() {
+  async function loadNotifications(reset = false) {
+    if (loading) return;
     setLoading(true);
     try {
-      const res = await agent.listNotifications({ limit: 50 });
-      setNotifications(res.data.notifications);
+      const currentCursor = reset ? undefined : cursor;
+      const res = await agent.listNotifications({ limit: 30, cursor: currentCursor });
+      
+      const newItems = res.data.notifications;
+      
+      if (reset) {
+          setNotifications(newItems);
+      } else {
+          setNotifications(prev => [...prev, ...newItems]);
+      }
+      
+      setCursor(res.data.cursor);
+      if (!res.data.cursor || newItems.length === 0) {
+          setHasMore(false);
+      } else {
+          setHasMore(true);
+      }
+
+      // Mark as read (update seen)
+      if (newItems.length > 0) {
+          const latest = newItems[0].indexedAt;
+          agent.updateSeenNotifications(latest).catch(console.error);
+      }
+
     } catch (e) {
       console.error("Failed to load notifications", e);
     } finally {
@@ -30,11 +58,16 @@ export function NotificationList({ agent }: NotificationListProps) {
     }
   }
 
-  if (loading && notifications.length === 0) return <div style={{padding: 20}}>Loading...</div>;
+  useEffect(() => {
+    loadNotifications(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent]);
+
+  if (loading && notifications.length === 0) return <div style={{padding: 20, textAlign: 'center'}}>Loading...</div>;
 
   return (
     <div>
-      {notifications.map(notif => {
+      {notifications.map((notif, index) => {
         const author = notif.author;
         let content = null;
         let icon = null;
@@ -69,8 +102,15 @@ export function NotificationList({ agent }: NotificationListProps) {
             content = notif.reason;
         }
 
+        const isLast = index === notifications.length - 1;
+
         return (
-          <div key={notif.uri} className="post-card" style={{ alignItems: 'center' }}>
+          <div 
+            key={`${notif.uri}-${index}`} 
+            ref={isLast ? lastElementRef : undefined}
+            className="post-card" 
+            style={{ alignItems: 'center', opacity: notif.isRead ? 0.7 : 1 }}
+          >
              <div style={{ fontSize: '1.2rem', width: 40, textAlign: 'center' }}>{icon}</div>
              <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
@@ -97,6 +137,7 @@ export function NotificationList({ agent }: NotificationListProps) {
           </div>
         );
       })}
+      {loading && <div style={{padding: 20, textAlign: 'center'}}>Loading more...</div>}
     </div>
   );
 }
