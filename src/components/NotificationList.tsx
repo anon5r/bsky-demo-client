@@ -48,7 +48,7 @@ export function NotificationList({ agent }: NotificationListProps) {
       // Mark as read (update seen)
       if (newItems.length > 0) {
           const latest = newItems[0].indexedAt;
-          agent.updateSeenNotifications(latest).catch(console.error);
+          agent.updateSeenNotifications(latest as `${string}-${string}-${string}T${string}:${string}:${string}Z`).catch(console.error);
       }
 
     } catch (e) {
