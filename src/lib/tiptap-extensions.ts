@@ -106,7 +106,7 @@ export const Hashtag = Mark.create({
   addInputRules() {
     return [
       markInputRule({
-        find: /(?:^|\s)(#[^\s!@#$%^&*()=+.\/,\[\]{\}:;?<>]+)$/,
+        find: /(?:^|\s)(#[^\s!@#$%^&*()=+./,[]{}:;?<>]+)$/,
         type: this.type,
       }),
     ]
