@@ -5,6 +5,7 @@ import { Modal } from './Modal';
 import { PostForm } from './PostForm';
 import { Agent } from '@atproto/api';
 import { ScheduleItem } from './ScheduleItem';
+import { ImageThumbnail } from './ImageThumbnail';
 
 interface ScheduleListProps {
   session: OAuthSession;
@@ -126,6 +127,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
             onDelete={deleteSchedule}
             onPreviewImage={setPreviewImage}
             isEditable={isEditable}
+            fetchHandler={(url, init) => session.fetchHandler(url, init)}
           />
         ))}
       </div>
@@ -156,8 +158,13 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
 
       {previewImage && (
         <Modal isOpen={true} onClose={() => setPreviewImage(null)} title="Image Preview">
-          <div style={{ textAlign: 'center', background: '#000', borderRadius: 12, overflow: 'hidden' }}>
-            <img src={previewImage} alt="Preview" style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block', margin: '0 auto' }} />
+          <div style={{ textAlign: 'center', background: '#000', borderRadius: 12, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+            <ImageThumbnail 
+              url={previewImage} 
+              alt="Preview" 
+              fetchHandler={(url, init) => session.fetchHandler(url, init)}
+              style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }} 
+            />
           </div>
         </Modal>
       )}

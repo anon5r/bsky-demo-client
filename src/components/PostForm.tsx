@@ -6,6 +6,7 @@ import { MediaUploader } from './post-form/MediaUploader';
 import { PostOptions } from './post-form/PostOptions';
 import { PlanInfo } from './post-form/PlanInfo';
 import { Modal } from './Modal';
+import { ImageThumbnail } from './ImageThumbnail';
 
 interface PostFormProps {
   agent: Agent;
@@ -116,6 +117,7 @@ export function PostForm({
               onEditAlt={(type, index) => setEditingAlt({ type, index })}
               onPreview={(url) => setPreviewImage(url)}
               getBlobUrl={getBlobUrl}
+              fetchHandler={(url, init) => session.fetchHandler(url, init)}
             />
 
             {quotePost && (
@@ -242,8 +244,13 @@ export function PostForm({
 
       {previewImage && (
         <Modal isOpen={true} onClose={() => setPreviewImage(null)} title="Image Preview">
-          <div style={{ textAlign: 'center', background: '#000', borderRadius: 12, overflow: 'hidden' }}>
-            <img src={previewImage} alt="Preview" style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block', margin: '0 auto' }} />
+          <div style={{ textAlign: 'center', background: '#000', borderRadius: 12, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+            <ImageThumbnail 
+              url={previewImage} 
+              alt="Preview" 
+              fetchHandler={(url, init) => session.fetchHandler(url, init)}
+              style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }} 
+            />
           </div>
         </Modal>
       )}

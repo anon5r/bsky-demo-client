@@ -1,3 +1,5 @@
+import { ImageThumbnail } from '../ImageThumbnail';
+
 interface MediaUploaderProps {
   images: { file: File; alt: string }[];
   existingImages: { image: any; alt: string }[];
@@ -6,6 +8,7 @@ interface MediaUploaderProps {
   onEditAlt: (type: 'new' | 'existing', index: number) => void;
   onPreview: (url: string) => void;
   getBlobUrl: (cid: string) => string;
+  fetchHandler?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 export function MediaUploader({
@@ -16,6 +19,7 @@ export function MediaUploader({
   onEditAlt,
   onPreview,
   getBlobUrl,
+  fetchHandler,
 }: MediaUploaderProps) {
   if (images.length === 0 && existingImages.length === 0) return null;
 
@@ -27,7 +31,13 @@ export function MediaUploader({
         return (
           <div key={`existing-${imgIdx}`} className="image-preview-item" style={{ cursor: 'zoom-in' }}>
             {url ? (
-              <img src={url} alt={img.alt} onClick={() => onPreview(url)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12 }} />
+              <ImageThumbnail 
+                url={url} 
+                alt={img.alt} 
+                fetchHandler={fetchHandler}
+                onClick={() => onPreview(url)} 
+                style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+              />
             ) : (
               <div style={{ width: '100%', height: '100%', background: 'var(--bg-color-tertiary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--text-color-secondary)' }}>
                 Existing
@@ -48,7 +58,12 @@ export function MediaUploader({
         const url = URL.createObjectURL(img.file);
         return (
           <div key={`new-${imgIdx}`} className="image-preview-item" style={{ cursor: 'zoom-in' }}>
-            <img src={url} alt={img.alt} onClick={() => onPreview(url)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12 }} />
+            <ImageThumbnail 
+                url={url} 
+                alt={img.alt} 
+                onClick={() => onPreview(url)} 
+                style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+            />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 4, background: 'rgba(0,0,0,0.5)', borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>
               <button type="button" className="btn-ghost" style={{ width: '100%', color: 'white', fontSize: '0.7rem', padding: 2 }} onClick={(e) => { e.stopPropagation(); onEditAlt('new', imgIdx); }}>
                 {img.alt ? 'Edit ALT' : '+ ALT'}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { type ScheduledPost } from '../lib/chronosky-xrpc-client';
+import { ImageThumbnail } from './ImageThumbnail';
 
 interface ScheduleItemProps {
   schedule: ScheduledPost;
@@ -8,6 +9,7 @@ interface ScheduleItemProps {
   onDelete: (id: string) => void;
   onPreviewImage: (url: string) => void;
   isEditable: (scheduledAt: string) => boolean;
+  fetchHandler?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 export const ScheduleItem = React.memo(({
@@ -17,6 +19,7 @@ export const ScheduleItem = React.memo(({
   onDelete,
   onPreviewImage,
   isEditable,
+  fetchHandler,
 }: ScheduleItemProps) => {
   return (
     <div className="post-card" style={{ display: 'block', cursor: 'default', padding: '16px', borderRadius: 12, marginBottom: 12, border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}>
@@ -55,7 +58,12 @@ export const ScheduleItem = React.memo(({
                 const url = getBlobUrl(cid);
                 return (
                   <div key={i} className="image-preview-item" style={{ width: '100%', aspectRatio: '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(url)}>
-                    <img src={url} alt={img.alt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <ImageThumbnail 
+                      url={url} 
+                      alt={img.alt} 
+                      fetchHandler={fetchHandler}
+                      style={{ width: '100%', height: '100%' }} 
+                    />
                   </div>
                 );
               })}
