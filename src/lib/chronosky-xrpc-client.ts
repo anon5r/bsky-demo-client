@@ -67,7 +67,31 @@ export interface ScheduledPost {
   facets?: any[];
   labels?: SelfLabels;
   disableQuotePosts?: boolean;
-  embed?: any;
+  embed?: {
+    $type: string;
+    images?: Array<{
+      thumb: string;
+      fullsize: string;
+      alt: string;
+      image?: any; // Original blob ref
+    }>;
+    media?: {
+      $type: string;
+      images?: Array<{
+        thumb: string;
+        fullsize: string;
+        alt: string;
+        image?: any;
+      }>;
+    };
+    external?: {
+      uri: string;
+      title: string;
+      description: string;
+      thumb?: string;
+    };
+    record?: any;
+  };
 }
 
 export interface ListSchedulesResponse {

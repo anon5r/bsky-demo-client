@@ -2,7 +2,7 @@ import { ImageThumbnail } from '../ImageThumbnail';
 
 interface MediaUploaderProps {
   images: { file: File; alt: string }[];
-  existingImages: { image: any; alt: string }[];
+  existingImages: any[];
   onRemoveNew: (index: number) => void;
   onRemoveExisting: (index: number) => void;
   onEditAlt: (type: 'new' | 'existing', index: number) => void;
@@ -25,14 +25,17 @@ export function MediaUploader({
 
   const getCid = (img: any) => {
     if (typeof img.image === 'string') return img.image;
+    // For Lexicon view schema, the original blob might be in 'image'
     return img.image?.ref?.$link || img.image?.cid || img.cid;
   };
 
   return (
     <div className="image-preview-grid" style={{ marginTop: 12 }}>
       {existingImages.map((img, imgIdx) => {
-        const cid = getCid(img);
-        const url = cid ? getBlobUrl(cid) : null;
+        // Use thumb if available (from listPosts), otherwise fallback to blob URL via CID
+        const url = img.thumb || (getCid(img) ? getBlobUrl(getCid(img)) : null);
+        const previewUrl = img.fullsize || url;
+
         return (
           <div key={`existing-${imgIdx}`} className="image-preview-item" style={{ cursor: 'zoom-in' }}>
             {url ? (
@@ -40,7 +43,7 @@ export function MediaUploader({
                 url={url} 
                 alt={img.alt} 
                 fetchHandler={fetchHandler}
-                onClick={() => onPreview(url)} 
+                onClick={() => onPreview(previewUrl)} 
                 style={{ width: '100%', height: '100%', borderRadius: 12 }} 
               />
             ) : (

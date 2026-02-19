@@ -31,8 +31,12 @@ export function usePostForm({
   postId,
 }: UsePostFormProps) {
   const [images, setImages] = useState<{ file: File; alt: string }[]>([]);
-  const [existingImages, setExistingImages] = useState<{ image: any; alt: string }[]>(
-    initialData?.images?.map((img: any) => ({ image: img.image || img, alt: img.alt || '' })) || []
+  const [existingImages, setExistingImages] = useState<any[]>(
+    initialData?.images?.map((img: any) => ({ 
+      ...img,
+      image: img.image || img, 
+      alt: img.alt || '' 
+    })) || []
   );
   const [labels, setLabels] = useState<string[]>(initialData?.labels || []);
   const [languages, setLanguages] = useState<string[]>(initialData?.langs || ['ja']);

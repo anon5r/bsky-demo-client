@@ -14,26 +14,19 @@ interface ScheduleItemProps {
 
 export const ScheduleItem = React.memo(({
   schedule,
-  getBlobUrl,
   onEdit,
   onDelete,
   onPreviewImage,
   isEditable,
   fetchHandler,
 }: ScheduleItemProps) => {
-  // Extract images from either images embed or recordWithMedia embed
+  // Extract images from either images embed or recordWithMedia embed using view schema (thumb/fullsize)
   let images: any[] = [];
-  if (schedule.embed?.$type === 'app.bsky.embed.images') {
+  if (schedule.embed?.$type === 'app.bsky.embed.images#view' || schedule.embed?.$type === 'app.bsky.embed.images') {
     images = schedule.embed.images || [];
-  } else if (schedule.embed?.$type === 'app.bsky.embed.recordWithMedia') {
+  } else if (schedule.embed?.$type === 'app.bsky.embed.recordWithMedia#view' || schedule.embed?.$type === 'app.bsky.embed.recordWithMedia') {
     images = schedule.embed.media?.images || [];
   }
-
-  const getCid = (img: any) => {
-    // Check various common structures for CIDs in AT Protocol / Chronosky responses
-    if (typeof img.image === 'string') return img.image;
-    return img.image?.ref?.$link || img.image?.cid || img.cid;
-  };
 
   return (
     <div className="post-card" style={{ display: 'block', cursor: 'default', padding: '16px', borderRadius: 12, marginBottom: 12, border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}>
@@ -67,13 +60,15 @@ export const ScheduleItem = React.memo(({
           {images.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: images.length > 1 ? 'repeat(2, 1fr)' : '1fr', gap: 8, marginBottom: 8 }}>
               {images.map((img: any, i: number) => {
-                const cid = getCid(img);
-                if (!cid) return null;
-                const url = getBlobUrl(cid);
+                // Use thumb URL from Lexicon view schema
+                const thumbUrl = img.thumb;
+                const fullsizeUrl = img.fullsize || img.thumb;
+                if (!thumbUrl) return null;
+                
                 return (
-                  <div key={i} className="image-preview-item" style={{ width: '100%', aspectRatio: images.length === 1 ? '16/9' : '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(url)}>
+                  <div key={i} className="image-preview-item" style={{ width: '100%', aspectRatio: images.length === 1 ? '16/9' : '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(fullsizeUrl)}>
                     <ImageThumbnail 
-                      url={url} 
+                      url={thumbUrl} 
                       alt={img.alt} 
                       fetchHandler={fetchHandler}
                       style={{ width: '100%', height: '100%' }} 
@@ -85,7 +80,7 @@ export const ScheduleItem = React.memo(({
           )}
           
           {/* External Link */}
-          {schedule.embed.$type === 'app.bsky.embed.external' && schedule.embed.external && (
+          {schedule.embed.$type.includes('app.bsky.embed.external') && schedule.embed.external && (
             <div style={{ 
               border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden', marginTop: 8
             }}>
@@ -97,7 +92,7 @@ export const ScheduleItem = React.memo(({
           )}
           
           {/* Record (Quote) */}
-          {(schedule.embed.$type === 'app.bsky.embed.record' || schedule.embed.$type === 'app.bsky.embed.recordWithMedia') && (
+          {(schedule.embed.$type.includes('app.bsky.embed.record')) && (
             <div style={{ 
               border: '1px solid var(--border-color)', borderRadius: 12, padding: 12, marginTop: 8,
               color: 'var(--text-color-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8,
