@@ -5,6 +5,7 @@ import { usePostForm } from './post-form/usePostForm';
 import { MediaUploader } from './post-form/MediaUploader';
 import { PostOptions } from './post-form/PostOptions';
 import { PlanInfo } from './post-form/PlanInfo';
+import { Modal } from './Modal';
 
 interface PostFormProps {
   agent: Agent;
@@ -50,6 +51,8 @@ export function PostForm({
     avatar,
     editingAlt,
     setEditingAlt,
+    previewImage,
+    setPreviewImage,
     handleImageSelect,
     removeImage,
     removeExistingImage,
@@ -111,6 +114,7 @@ export function PostForm({
               onRemoveNew={removeImage}
               onRemoveExisting={removeExistingImage}
               onEditAlt={(type, index) => setEditingAlt({ type, index })}
+              onPreview={(url) => setPreviewImage(url)}
               getBlobUrl={getBlobUrl}
             />
 
@@ -234,6 +238,14 @@ export function PostForm({
         <div className="status-msg error" style={{ padding: '10px 16px', color: 'var(--error-color)', fontSize: '0.9rem', borderTop: '1px solid var(--border-color)' }}>
           <i className="fa-solid fa-circle-exclamation"></i> {errorMsg}
         </div>
+      )}
+
+      {previewImage && (
+        <Modal isOpen={true} onClose={() => setPreviewImage(null)} title="Image Preview">
+          <div style={{ textAlign: 'center', background: '#000', borderRadius: 12, overflow: 'hidden' }}>
+            <img src={previewImage} alt="Preview" style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block', margin: '0 auto' }} />
+          </div>
+        </Modal>
       )}
     </div>
   );

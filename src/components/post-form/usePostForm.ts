@@ -45,6 +45,7 @@ export function usePostForm({
   const [showOptions, setShowOptions] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [editingAlt, setEditingAlt] = useState<{ type: 'new' | 'existing'; index: number } | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     agent.getProfile({ actor: session.did }).then((res) => setAvatar(res.data.avatar || null)).catch(() => {});
@@ -169,6 +170,8 @@ export function usePostForm({
             uploaded.push({ alt: img.alt, image: uploadRes.blob });
           }
           scheduleEmbed = { $type: 'app.bsky.embed.images', images: uploaded };
+        } else {
+          scheduleEmbed = null; // Explicitly indicate no images
         }
 
         if (quotePost) {
@@ -315,6 +318,8 @@ export function usePostForm({
     avatar,
     editingAlt,
     setEditingAlt,
+    previewImage,
+    setPreviewImage,
     handleImageSelect,
     removeImage,
     removeExistingImage,
