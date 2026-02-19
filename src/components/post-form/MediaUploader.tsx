@@ -23,10 +23,15 @@ export function MediaUploader({
 }: MediaUploaderProps) {
   if (images.length === 0 && existingImages.length === 0) return null;
 
+  const getCid = (img: any) => {
+    if (typeof img.image === 'string') return img.image;
+    return img.image?.ref?.$link || img.image?.cid || img.cid;
+  };
+
   return (
     <div className="image-preview-grid" style={{ marginTop: 12 }}>
       {existingImages.map((img, imgIdx) => {
-        const cid = img.image?.ref?.$link || img.image?.cid;
+        const cid = getCid(img);
         const url = cid ? getBlobUrl(cid) : null;
         return (
           <div key={`existing-${imgIdx}`} className="image-preview-item" style={{ cursor: 'zoom-in' }}>

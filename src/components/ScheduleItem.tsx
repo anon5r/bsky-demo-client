@@ -21,6 +21,20 @@ export const ScheduleItem = React.memo(({
   isEditable,
   fetchHandler,
 }: ScheduleItemProps) => {
+  // Extract images from either images embed or recordWithMedia embed
+  let images: any[] = [];
+  if (schedule.embed?.$type === 'app.bsky.embed.images') {
+    images = schedule.embed.images || [];
+  } else if (schedule.embed?.$type === 'app.bsky.embed.recordWithMedia') {
+    images = schedule.embed.media?.images || [];
+  }
+
+  const getCid = (img: any) => {
+    // Check various common structures for CIDs in AT Protocol / Chronosky responses
+    if (typeof img.image === 'string') return img.image;
+    return img.image?.ref?.$link || img.image?.cid || img.cid;
+  };
+
   return (
     <div className="post-card" style={{ display: 'block', cursor: 'default', padding: '16px', borderRadius: 12, marginBottom: 12, border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
@@ -49,15 +63,15 @@ export const ScheduleItem = React.memo(({
       {/* Embed Previews */}
       {schedule.embed && (
         <div style={{ marginTop: 12 }}>
-          {/* Images */}
-          {schedule.embed.$type === 'app.bsky.embed.images' && schedule.embed.images && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
-              {schedule.embed.images.map((img: any, i: number) => {
-                const cid = img.image?.ref?.$link || img.image?.cid;
+          {/* Images Grid */}
+          {images.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: images.length > 1 ? 'repeat(2, 1fr)' : '1fr', gap: 8, marginBottom: 8 }}>
+              {images.map((img: any, i: number) => {
+                const cid = getCid(img);
                 if (!cid) return null;
                 const url = getBlobUrl(cid);
                 return (
-                  <div key={i} className="image-preview-item" style={{ width: '100%', aspectRatio: '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(url)}>
+                  <div key={i} className="image-preview-item" style={{ width: '100%', aspectRatio: images.length === 1 ? '16/9' : '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(url)}>
                     <ImageThumbnail 
                       url={url} 
                       alt={img.alt} 
