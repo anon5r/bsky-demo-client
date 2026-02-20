@@ -163,8 +163,10 @@ export function usePostForm({
 
         if (images.length > 0 || existingImages.length > 0) {
           if (postId) {
-            // Update mode: use imagesEmbed format with CID references for existing images
-            const imageRefs: { alt: string; image?: any; cid?: string }[] = existingImages.map((img) => ({
+            // Update mode: use imagesEmbed format with CID references for all images
+            // Existing images: CID from getPost/listPosts response
+            // New/replaced images: upload via uploadBlob, then use the returned CID
+            const imageRefs: { alt: string; cid: string }[] = existingImages.map((img) => ({
               alt: img.alt,
               cid: img.image?.ref?.$link || img.cid,
             }));
@@ -172,7 +174,7 @@ export function usePostForm({
               const compressed = await compressImage(img.file);
               const uploadRes = await client.uploadBlob(compressed as Blob);
               if (!uploadRes || !uploadRes.blob) throw new Error('Failed to upload image');
-              imageRefs.push({ alt: img.alt, image: uploadRes.blob });
+              imageRefs.push({ alt: img.alt, cid: uploadRes.blob.ref.$link });
             }
             scheduleEmbed = { $type: 'app.chronosky.schedule.updatePost#imagesEmbed', images: imageRefs };
           } else {

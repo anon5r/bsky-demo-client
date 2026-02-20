@@ -106,8 +106,7 @@ export interface ListSchedulesResponse {
 
 export interface ImageRef {
   alt: string;
-  image?: BlobRef;
-  cid?: string;
+  cid: string;
 }
 
 export interface ImagesEmbed {
