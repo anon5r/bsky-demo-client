@@ -1173,11 +1173,7 @@ interface UpdatePostRequest {
       did?: string;
     }>;
   }>;
-  embed?: {
-    // 埋め込みコンテンツ
-    $type: string;
-    // ... 埋め込みタイプに応じたフィールド
-  };
+  embed?: EmbedUnion | ImagesEmbed; // 埋め込みコンテンツ（下記参照）
   labels?: {
     // セルフラベル（AT Protocol 標準）
     $type: 'com.atproto.label.defs#selfLabels';
@@ -1185,6 +1181,71 @@ interface UpdatePostRequest {
   };
 }
 ```
+
+##### 画像 embed の CID 参照（`imagesEmbed`）
+
+投稿編集時に既存画像を再アップロードせず CID で参照できます。新規画像のみ blob を送信し、既存画像は `cid` フィールドで指定します。
+
+```typescript
+// CID ベースの画像参照型
+interface ImageRef {
+  alt: string; // 代替テキスト（必須）
+  image?: BlobRef; // 新規画像の blob（新規アップロード時）
+  cid?: string; // 既存画像の CID（既存画像参照時）
+}
+
+// updatePost 専用の画像 embed 型
+interface ImagesEmbed {
+  $type: 'app.chronosky.schedule.updatePost#imagesEmbed';
+  images: ImageRef[]; // 最大 4 枚
+}
+```
+
+各 `ImageRef` には `image`（新規 blob）または `cid`（既存参照）のいずれかが必須です。
+既存画像の CID は `getPost` レスポンスの `embed.images[].image.ref.$link` から取得できます。
+
+**CID 参照の使用例（4枚中1枚を差し替え）:**
+
+```typescript
+// 1. 既存投稿を取得して画像の CID を確認
+const getResponse = await callChronoskyAPI(
+  'GET',
+  `app.chronosky.schedule.getPost?id=${postId}`,
+  accessToken,
+  dpopKey
+);
+const { post } = await getResponse.json();
+// post.embed.images[0].image.ref.$link → "bafyrei_existing_cid_1"
+// post.embed.images[1].image.ref.$link → "bafyrei_existing_cid_2"
+
+// 2. 画像1を差し替え、画像2はそのまま保持
+const response = await callChronoskyAPI(
+  'POST',
+  'app.chronosky.schedule.updatePost',
+  accessToken,
+  dpopKey,
+  {
+    id: postId,
+    embed: {
+      $type: 'app.chronosky.schedule.updatePost#imagesEmbed',
+      images: [
+        {
+          alt: '新しい画像',
+          image: {
+            $type: 'blob',
+            ref: { $link: 'bafynew_uploaded_cid' },
+            mimeType: 'image/jpeg',
+            size: 12345
+          }
+        },
+        { alt: '既存画像2', cid: 'bafyrei_existing_cid_2' }
+      ]
+    }
+  }
+);
+```
+
+> **注意:** 標準の `app.bsky.embed.images` 形式（全画像の blob を含む）も引き続きサポートされます。CID 参照はオプション機能です。
 
 **レスポンス:**
 
