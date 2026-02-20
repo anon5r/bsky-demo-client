@@ -68,6 +68,18 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
     }
   };
   
+  function getEmbedImages(embed: ScheduledPost['embed']): any[] {
+    if (!embed) return [];
+    const type = embed.$type;
+    if (type === 'app.bsky.embed.images' || type === 'app.bsky.embed.images#view') {
+      return embed.images || [];
+    }
+    if (type === 'app.bsky.embed.recordWithMedia' || type === 'app.bsky.embed.recordWithMedia#view') {
+      return embed.media?.images || [];
+    }
+    return [];
+  }
+
   const isEditable = (scheduledAt: string) => {
     const diff = new Date(scheduledAt).getTime() - Date.now();
     return diff > 5 * 60 * 1000; // > 5 mins
@@ -142,7 +154,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
             initialData={{
               text: editingSchedule.text,
               scheduledAt: formatForInput(editingSchedule.scheduledAt),
-              images: (editingSchedule.embed?.$type === 'app.bsky.embed.images') ? editingSchedule.embed.images : [],
+              images: getEmbedImages(editingSchedule.embed),
               langs: editingSchedule.langs,
               labels: editingSchedule.labels?.values?.map((v: { val: string }) => v.val) || [],
               disableQuotes: editingSchedule.disableQuotePosts
