@@ -1026,7 +1026,7 @@ const response = await callChronoskyAPI(
 
 ```typescript
 interface ListPostsQuery {
-  status?: 'pending' | 'executing' | 'completed' | 'failed' | 'cancelled'; // 投稿ステータスでフィルタ（大文字小文字を問わない）
+  status?: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; // 投稿ステータスでフィルタ（大文字で指定）
   page?: number; // ページ番号（デフォルト: 1）
   limit?: number; // ページあたりの取得件数（デフォルト: 20）
 }
@@ -1070,7 +1070,7 @@ interface ListPostsResponse {
 // PENDING 状態の投稿を取得
 const response = await callChronoskyAPI(
   'GET',
-  'app.chronosky.schedule.listPosts?status=pending&page=1&limit=20',
+  'app.chronosky.schedule.listPosts?status=PENDING&page=1&limit=20',
   accessToken,
   dpopKey
 );
@@ -1084,15 +1084,16 @@ data.posts.forEach(post => {
 
 **status パラメータの形式:**
 
-API は自動的に status パラメータを大文字に変換するため、大文字小文字を気にする必要はありません。
-`PENDING`, `EXECUTING`, `COMPLETED`, `FAILED`, `CANCELLED`
-のいずれかの値を指定できます。
+`status` パラメータは**大文字で指定する必要があります**。Lexicon スキーマで大文字の enum として定義されているため、小文字はバリデーションエラーになります。
 
 ```typescript
-// どちらの形式でも正常に動作します
-'?status=pending'; // ✅ 自動的に PENDING に変換
-'?status=PENDING'; // ✅ そのまま使用
-'?status=completed'; // ✅ 自動的に COMPLETED に変換
+// ✅ 正しい形式（大文字）
+'?status=PENDING';
+'?status=COMPLETED';
+
+// ❌ 間違い（小文字はバリデーションエラー）
+'?status=pending';
+'?status=completed';
 ```
 
 #### `app.chronosky.schedule.getPost`
@@ -2052,37 +2053,45 @@ function showUpgradePrompt(errorInfo: {
 #### 問題: "invalid input value for enum PostStatus: 'pending'"
 
 **原因:** `status`
-パラメータが小文字で送信され、データベースの enum 型（大文字）と一致しない
+パラメータが小文字で送信され、Lexicon スキーマの enum 定義（大文字）と一致しない
 
 **解決方法:**
 
-**📝 Status パラメータの自動変換機能**
-
-Chronosky API は `status`
-パラメータを**自動的に大文字に変換**します。サードパーティクライアントは小文字・大文字どちらでも送信できます。
+`status` パラメータは**必ず大文字で指定**してください。Lexicon スキーマで大文字の enum として定義されているため、XRPC バリデーションで小文字は拒否されます。
 
 ```typescript
-// どちらも正常に動作します
-'?status=pending'; // ✅ API が自動的に PENDING に変換
-'?status=PENDING'; // ✅ そのまま使用
+// ✅ 正しい形式（大文字）
+'?status=PENDING';
+'?status=EXECUTING';
+'?status=COMPLETED';
+'?status=FAILED';
+'?status=CANCELLED';
 
-// 他のステータスも同様
-'?status=executing'; // → EXECUTING
-'?status=completed'; // → COMPLETED
-'?status=failed'; // → FAILED
-'?status=cancelled'; // → CANCELLED
+// ❌ 間違い（小文字はバリデーションエラー）
+'?status=pending';
+'?status=completed';
 ```
 
 **利用可能な Status 値:**
 
-- `pending` / `PENDING` - 予約済み（実行待ち）
-- `executing` / `EXECUTING` - 実行中
-- `completed` / `COMPLETED` - 完了
-- `failed` / `FAILED` - 失敗
-- `cancelled` / `CANCELLED` - キャンセル済み
+- `PENDING` - 予約済み（実行待ち）
+- `EXECUTING` - 実行中
+- `COMPLETED` - 完了
+- `FAILED` - 失敗
+- `CANCELLED` - キャンセル済み
 
 **実装のヒント:**
-サードパーティクライアントでは小文字を使用することで、コードの可読性が向上します。API が自動変換するため、大文字への変換を意識する必要はありません。
+クライアント側でステータス値を定数として定義しておくと、タイポを防げます。
+
+```typescript
+const PostStatus = {
+  PENDING: 'PENDING',
+  EXECUTING: 'EXECUTING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
+} as const;
+```
 
 #### 問題: プラン制限エラーが頻繁に発生する
 
