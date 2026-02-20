@@ -104,13 +104,24 @@ export interface ListSchedulesResponse {
   };
 }
 
+export interface ImageRef {
+  alt: string;
+  image?: BlobRef;
+  cid?: string;
+}
+
+export interface ImagesEmbed {
+  $type: 'app.chronosky.schedule.updatePost#imagesEmbed';
+  images: ImageRef[];
+}
+
 export interface UpdatePostRequest {
   id: string;
   text?: string;
   langs?: string[];
   scheduledAt?: string;
   facets?: any[];
-  embed?: any;
+  embed?: ImagesEmbed | any;
   labels?: SelfLabels;
 }
 

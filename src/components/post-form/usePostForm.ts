@@ -162,17 +162,30 @@ export function usePostForm({
         let scheduleEmbed: any = undefined;
 
         if (images.length > 0 || existingImages.length > 0) {
-          const uploaded: { alt: string; image: any }[] = existingImages.map((img) => ({
-            alt: img.alt,
-            image: img.image,
-          }));
-          for (const img of images) {
-            const compressed = await compressImage(img.file);
-            const uploadRes = await client.uploadBlob(compressed as Blob);
-            if (!uploadRes || !uploadRes.blob) throw new Error('Failed to upload image');
-            uploaded.push({ alt: img.alt, image: uploadRes.blob });
+          if (postId) {
+            // Update mode: use imagesEmbed format with CID references for existing images
+            const imageRefs: { alt: string; image?: any; cid?: string }[] = existingImages.map((img) => ({
+              alt: img.alt,
+              cid: img.image?.ref?.$link || img.cid,
+            }));
+            for (const img of images) {
+              const compressed = await compressImage(img.file);
+              const uploadRes = await client.uploadBlob(compressed as Blob);
+              if (!uploadRes || !uploadRes.blob) throw new Error('Failed to upload image');
+              imageRefs.push({ alt: img.alt, image: uploadRes.blob });
+            }
+            scheduleEmbed = { $type: 'app.chronosky.schedule.updatePost#imagesEmbed', images: imageRefs };
+          } else {
+            // Create mode: use standard app.bsky.embed.images format
+            const uploaded: { alt: string; image: any }[] = [];
+            for (const img of images) {
+              const compressed = await compressImage(img.file);
+              const uploadRes = await client.uploadBlob(compressed as Blob);
+              if (!uploadRes || !uploadRes.blob) throw new Error('Failed to upload image');
+              uploaded.push({ alt: img.alt, image: uploadRes.blob });
+            }
+            scheduleEmbed = { $type: 'app.bsky.embed.images', images: uploaded };
           }
-          scheduleEmbed = { $type: 'app.bsky.embed.images', images: uploaded };
         } else {
           scheduleEmbed = null; // Explicitly indicate no images
         }
