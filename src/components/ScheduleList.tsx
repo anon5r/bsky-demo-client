@@ -17,6 +17,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<React.ReactNode>('');
   const [editingSchedule, setEditingSchedule] = useState<ScheduledPost | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const client = React.useMemo(() => new ChronoskyClient((url, init) => session.fetchHandler(url, init)), [session]);
@@ -80,6 +81,21 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
     return [];
   }
 
+  const handleEdit = useCallback(async (schedule: ScheduledPost) => {
+    setEditLoading(true);
+    try {
+      // Fetch full post data via getPost to get image CIDs (image.ref.$link)
+      // listPosts returns view schema which lacks blob references
+      const { post } = await client.getPost(schedule.id);
+      setEditingSchedule(post);
+    } catch (error: any) {
+      console.error("Failed to load post details", error);
+      alert("Failed to load post details: " + error.message);
+    } finally {
+      setEditLoading(false);
+    }
+  }, [client]);
+
   const isEditable = (scheduledAt: string) => {
     const diff = new Date(scheduledAt).getTime() - Date.now();
     return diff > 5 * 60 * 1000; // > 5 mins
@@ -135,7 +151,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
             key={schedule.id}
             schedule={schedule}
             getBlobUrl={getBlobUrl}
-            onEdit={setEditingSchedule}
+            onEdit={handleEdit}
             onDelete={deleteSchedule}
             onPreviewImage={setPreviewImage}
             isEditable={isEditable}
@@ -144,9 +160,18 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
         ))}
       </div>
 
-      {agent && editingSchedule && (
+      {editLoading && (
+        <Modal isOpen={true} onClose={() => setEditLoading(false)} title="Edit Schedule">
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-color-secondary)' }}>
+            <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
+            <p style={{ marginTop: 10 }}>Loading post details...</p>
+          </div>
+        </Modal>
+      )}
+
+      {agent && editingSchedule && !editLoading && (
         <Modal isOpen={true} onClose={() => setEditingSchedule(null)} title="Edit Schedule">
-          <PostForm 
+          <PostForm
             agent={agent}
             session={session}
             defaultMode="schedule"

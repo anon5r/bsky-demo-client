@@ -156,6 +156,10 @@ export interface GetUsageResponse {
   usage: PlanUsage;
 }
 
+export interface GetPostResponse {
+  post: ScheduledPost;
+}
+
 export interface DeleteScheduleRequest {
   id: string;
 }
@@ -247,6 +251,12 @@ export class ChronoskyClient {
     if (input?.limit) params.append('limit', input.limit.toString());
 
     return this.request('GET', 'app.chronosky.schedule.listPosts', undefined, params);
+  }
+
+  async getPost(id: string): Promise<GetPostResponse> {
+    const params = new URLSearchParams();
+    params.append('id', id);
+    return this.request('GET', 'app.chronosky.schedule.getPost', undefined, params);
   }
 
   async updatePost(input: UpdatePostRequest): Promise<UpdatePostResponse> {
