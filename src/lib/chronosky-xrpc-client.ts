@@ -70,18 +70,20 @@ export interface ScheduledPost {
   embed?: {
     $type: string;
     images?: Array<{
+      $type?: string;
       thumb: string;
       fullsize: string;
       alt: string;
-      image?: any; // Original blob ref
+      cid?: string;
     }>;
     media?: {
       $type: string;
       images?: Array<{
+        $type?: string;
         thumb: string;
         fullsize: string;
         alt: string;
-        image?: any;
+        cid?: string;
       }>;
     };
     external?: {

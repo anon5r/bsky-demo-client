@@ -20,12 +20,13 @@ export const ScheduleItem = React.memo(({
   isEditable,
   fetchHandler,
 }: ScheduleItemProps) => {
-  // Extract images from either images embed or recordWithMedia embed using view schema (thumb/fullsize)
+  // Extract images from embed using Chronosky Lexicon view schema
   let images: any[] = [];
-  if (schedule.embed?.$type === 'app.bsky.embed.images#view' || schedule.embed?.$type === 'app.bsky.embed.images') {
-    images = schedule.embed.images || [];
-  } else if (schedule.embed?.$type === 'app.bsky.embed.recordWithMedia#view' || schedule.embed?.$type === 'app.bsky.embed.recordWithMedia') {
-    images = schedule.embed.media?.images || [];
+  const embedType = schedule.embed?.$type;
+  if (embedType === 'app.chronosky.schedule.listPosts#imageView') {
+    images = schedule.embed!.images || [];
+  } else if (embedType === 'app.bsky.embed.recordWithMedia' || embedType === 'app.bsky.embed.recordWithMedia#view') {
+    images = schedule.embed!.media?.images || [];
   }
 
   return (

@@ -23,10 +23,8 @@ export function MediaUploader({
 }: MediaUploaderProps) {
   if (images.length === 0 && existingImages.length === 0) return null;
 
-  const getCid = (img: any) => {
-    if (typeof img.image === 'string') return img.image;
-    // For Lexicon view schema, the original blob might be in 'image'
-    return img.image?.ref?.$link || img.image?.cid || img.cid;
+  const getCid = (img: any): string | undefined => {
+    return img.cid;
   };
 
   return (

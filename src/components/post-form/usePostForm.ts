@@ -168,7 +168,7 @@ export function usePostForm({
             // New/replaced images: upload via uploadBlob, then use the returned CID
             const imageRefs: { alt: string; cid: string }[] = existingImages.map((img) => ({
               alt: img.alt,
-              cid: img.image?.ref?.$link || img.cid,
+              cid: img.cid,
             }));
             for (const img of images) {
               const compressed = await compressImage(img.file);
