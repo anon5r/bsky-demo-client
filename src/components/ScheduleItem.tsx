@@ -7,7 +7,7 @@ interface ScheduleItemProps {
   getBlobUrl: (cid: string) => string;
   onEdit: (schedule: ScheduledPost) => void;
   onDelete: (id: string) => void;
-  onPreviewImage: (url: string) => void;
+  onPreviewImage: (url: string, alt?: string) => void;
   isEditable: (scheduledAt: string) => boolean;
   fetchHandler?: (url: string, init?: RequestInit) => Promise<Response>;
 }
@@ -72,13 +72,29 @@ export const ScheduleItem = React.memo(({
                 if (!thumbUrl) return null;
                 
                 return (
-                  <div key={cid || i} className="image-preview-item" style={{ width: '100%', aspectRatio: images.length === 1 ? '16/9' : '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(fullsizeUrl)}>
+                  <div key={cid || i} className="image-preview-item" style={{ width: '100%', aspectRatio: images.length === 1 ? '16/9' : '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden', position: 'relative' }} onClick={() => onPreviewImage(fullsizeUrl, img.alt)}>
                     <ImageThumbnail 
                       url={thumbUrl} 
                       alt={img.alt} 
                       fetchHandler={fetchHandler}
                       style={{ width: '100%', height: '100%' }} 
                     />
+                    {img.alt && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 8,
+                        left: 8,
+                        background: 'rgba(0,0,0,0.7)',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontSize: '0.7rem',
+                        fontWeight: 'bold',
+                        pointerEvents: 'none'
+                      }}>
+                        ALT
+                      </div>
+                    )}
                   </div>
                 );
               })}

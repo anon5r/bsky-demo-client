@@ -53,6 +53,7 @@ export function PostForm({
     editingAlt,
     setEditingAlt,
     previewImage,
+    previewAlt,
     setPreviewImage,
     handleImageSelect,
     removeImage,
@@ -115,7 +116,7 @@ export function PostForm({
               onRemoveNew={removeImage}
               onRemoveExisting={removeExistingImage}
               onEditAlt={(type, index) => setEditingAlt({ type, index })}
-              onPreview={(url) => setPreviewImage(url)}
+              onPreview={(url, alt) => setPreviewImage(url, alt)}
               getBlobUrl={getBlobUrl}
               fetchHandler={(url, init) => session.fetchHandler(url, init)}
             />
@@ -243,14 +244,31 @@ export function PostForm({
       )}
 
       {previewImage && (
-        <Modal isOpen={true} onClose={() => setPreviewImage(null)} title="Image Preview">
-          <div style={{ textAlign: 'center', background: '#000', borderRadius: 12, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+        <Modal isOpen={true} onClose={() => setPreviewImage(null, '')} title="Image Preview">
+          <div style={{ textAlign: 'center', background: '#000', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
             <ImageThumbnail 
               url={previewImage} 
-              alt="Preview" 
+              alt={previewAlt || 'Preview'} 
               fetchHandler={(url, init) => session.fetchHandler(url, init)}
-              style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }} 
+              style={{ maxWidth: '100%', maxHeight: '70vh', display: 'block' }} 
             />
+            {previewAlt && (
+              <div style={{ 
+                width: '100%', 
+                padding: '16px', 
+                background: 'rgba(255,255,255,0.05)', 
+                color: 'white', 
+                fontSize: '0.9rem', 
+                textAlign: 'left',
+                borderTop: '1px solid rgba(255,255,255,0.1)',
+                lineHeight: 1.5,
+                maxHeight: '15vh',
+                overflowY: 'auto'
+              }}>
+                <div style={{ fontWeight: 'bold', fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', marginBottom: 4, textTransform: 'uppercase' }}>Alternative Text</div>
+                {previewAlt}
+              </div>
+            )}
           </div>
         </Modal>
       )}

@@ -49,6 +49,7 @@ export function usePostForm({
   const [avatar, setAvatar] = useState<string | null>(null);
   const [editingAlt, setEditingAlt] = useState<{ type: 'new' | 'existing'; index: number } | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewAlt, setPreviewAlt] = useState<string | null>(null);
 
   useEffect(() => {
     agent.getProfile({ actor: session.did }).then((res) => setAvatar(res.data.avatar || null)).catch(() => {});
@@ -341,7 +342,11 @@ export function usePostForm({
     editingAlt,
     setEditingAlt,
     previewImage,
-    setPreviewImage,
+    previewAlt,
+    setPreviewImage: (url: string | null, alt?: string) => {
+      setPreviewImage(url);
+      setPreviewAlt(alt || null);
+    },
     handleImageSelect,
     removeImage,
     removeExistingImage,
