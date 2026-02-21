@@ -1125,7 +1125,16 @@ interface GetPostResponse {
     parentPostId?: string;         // 親投稿 ID（スレッドの場合）
     threadOrder?: number;          // スレッド内の順序
     facets?: Array<{...}>;         // リンクやメンションの装飾
-    embed?: {...};                 // 埋め込みコンテンツ
+    embed?: {                      // 埋め込みコンテンツ（画像の場合は #imageView 形式）
+      $type: 'app.chronosky.schedule.listPosts#imageView';
+      images: Array<{
+        $type: 'app.chronosky.schedule.listPosts#imageViewImage';
+        thumb: string;             // サムネイル URL
+        fullsize: string;          // フルサイズ URL
+        alt: string;               // 代替テキスト
+        cid?: string;              // 画像の CID（updatePost での参照用）
+      }>;
+    } | {...};                     // その他の embed タイプ
     labels?: {                     // セルフラベル（AT Protocol 標準）
       $type: 'com.atproto.label.defs#selfLabels';
       values: Array<{ val: string }>;
@@ -1203,7 +1212,7 @@ interface ImagesEmbed {
 ```
 
 各 `ImageRef` には `image`（新規 blob）または `cid`（既存参照）のいずれかが必須です。
-既存画像の CID は `getPost` レスポンスの `embed.images[].image.ref.$link` から取得できます。
+既存画像の CID は `getPost` / `listPosts` レスポンスの `embed.images[].cid` フィールドから取得できます。
 
 **CID 参照の使用例（4枚中1枚を差し替え）:**
 
@@ -1216,8 +1225,8 @@ const getResponse = await callChronoskyAPI(
   dpopKey
 );
 const { post } = await getResponse.json();
-// post.embed.images[0].image.ref.$link → "bafyrei_existing_cid_1"
-// post.embed.images[1].image.ref.$link → "bafyrei_existing_cid_2"
+// post.embed.images[0].cid → "bafyrei_existing_cid_1"
+// post.embed.images[1].cid → "bafyrei_existing_cid_2"
 
 // 2. 画像1を差し替え、画像2はそのまま保持
 const response = await callChronoskyAPI(
