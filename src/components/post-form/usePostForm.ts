@@ -193,8 +193,6 @@ export function usePostForm({
             }
             scheduleEmbed = { $type: 'app.bsky.embed.images', images: uploaded };
           }
-        } else {
-          scheduleEmbed = null; // Explicitly indicate no images
         }
 
         if (quotePost) {
