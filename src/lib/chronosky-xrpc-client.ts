@@ -130,25 +130,6 @@ export interface UpdatePostResponse {
   post: ScheduledPost;
 }
 
-export interface PlanAssignment {
-  planId: string;
-  planName: string;
-  tier: string;
-  expiresAt?: string;
-  limits: {
-    maxConcurrentPosts: number;
-    maxPostsPerDay: number;
-    maxScheduleDays: number;
-    minScheduleInterval: number;
-    maxThreadPosts: number;
-    maxImagesPerPost: number;
-  };
-}
-
-export interface GetAssignmentResponse {
-  assignment: PlanAssignment | null;
-}
-
 export interface PlanUsage {
   concurrentPosts: number;
   postsToday: number;
@@ -267,10 +248,6 @@ export class ChronoskyClient {
 
   async deletePost(input: { id: string }): Promise<DeleteScheduleResponse> {
     return this.request('POST', 'app.chronosky.schedule.deletePost', input);
-  }
-
-  async getAssignment(): Promise<GetAssignmentResponse> {
-    return this.request('GET', 'app.chronosky.plan.getAssignment');
   }
 
   async getUsage(): Promise<GetUsageResponse> {

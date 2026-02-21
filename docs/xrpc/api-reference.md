@@ -42,7 +42,6 @@ DPoP: <dpop_proof>
 
 ### プラン管理
 
-- [app.chronosky.plan.getAssignment](#appchronoskyplangetassignment) - アクティブなプラン割り当てを取得
 - [app.chronosky.plan.getUsage](#appchronoskyplangetusage) - プラン使用状況を取得
 
 ---
@@ -238,35 +237,6 @@ DPoP: <dpop_proof>
 ---
 
 ## プラン管理
-
-### app.chronosky.plan.getAssignment
-
-現在アクティブなプラン割り当てを取得します。
-
-**メソッド**: `GET` **パス**: `/xrpc/app.chronosky.plan.getAssignment`
-
-#### レスポンス
-
-```typescript
-{
-  assignment: {
-    planId: string;
-    planName: string;
-    tier: string;
-    expiresAt?: string;
-    limits: {
-      maxConcurrentPosts: number;
-      maxPostsPerDay: number;
-      maxScheduleDays: number;
-      minScheduleInterval: number;
-      maxThreadPosts: number;
-      maxImagesPerPost: number;
-    };
-  } | null;
-}
-```
-
----
 
 ### app.chronosky.plan.getUsage
 

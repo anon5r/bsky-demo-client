@@ -4,7 +4,6 @@ import { EditorContent } from '@tiptap/react';
 import { usePostForm } from './post-form/usePostForm';
 import { MediaUploader } from './post-form/MediaUploader';
 import { PostOptions } from './post-form/PostOptions';
-import { PlanInfo } from './post-form/PlanInfo';
 import { Modal } from './Modal';
 import { ImageThumbnail } from './ImageThumbnail';
 
@@ -93,7 +92,6 @@ export function PostForm({
 
   return (
     <div className="post-form-container" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border-color)', position: 'relative' }}>
-      {mode === 'schedule' && <PlanInfo session={session} />}
       
       {replyTo && (
         <div style={{ padding: '8px 16px', color: 'var(--text-color-secondary)', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)' }}>

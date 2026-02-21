@@ -230,20 +230,6 @@ TXT レコードと atproto リポジトリ）は別途実装されます。
 
 ### プラン管理
 
-#### app.chronosky.plan.getAssignment
-
-アクティブなプラン割り当てを取得する query メソッドです。
-
-**NSID**: `app.chronosky.plan.getAssignment` **種類**: `query`
-
-**Parameters:** (なし)
-
-**Output:**
-
-- `assignment` (nullable): `PlanAssignment` - プラン割り当て情報
-
----
-
 #### app.chronosky.plan.listAssignments
 
 プラン割り当て履歴を取得する query メソッドです。
