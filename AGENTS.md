@@ -85,9 +85,6 @@ Third-Party Demo App (React + Vite SPA)
 ### 2. 環境変数
 
 ```bash
-# .env または Vercel Environment Variables
-VITE_APP_URL=https://your-app.vercel.app
-
 # オプション（デフォルト値あり）
 VITE_CHRONOSKY_API_URL=https://api.chronosky.app
 ```
@@ -97,8 +94,8 @@ VITE_CHRONOSKY_API_URL=https://api.chronosky.app
 ```json
 {
   "scripts": {
-    "dev": "node scripts/generate-client-metadata.mjs && vite",
-    "build": "node scripts/generate-client-metadata.mjs && tsc -b && vite build",
+    "dev": "node scripts/inject-auth-config.mjs && vite",
+    "build": "node scripts/inject-auth-config.mjs && tsc -b && vite build",
     "preview": "vite preview"
   }
 }
@@ -106,30 +103,28 @@ VITE_CHRONOSKY_API_URL=https://api.chronosky.app
 
 ## OAuth フロー実装
 
-### 1. クライアントメタデータ生成
+### 1. クライアントメタデータ提供
 
-```javascript
-// scripts/generate-client-metadata.mjs
-const clientMetadata = {
-  client_id: `${APP_URL}/.well-known/client-metadata.json`,
-  client_name: "Bluesky Client Demo App",
-  client_uri: APP_URL,
-  redirect_uris: [
-    `${APP_URL}/oauth/callback`
-  ],
-  scope: "atproto transition:generic",
-  grant_types: ["authorization_code", "refresh_token"],
-  response_types: ["code"],
-  response_mode: "query",
-  token_endpoint_auth_method: "none",
-  application_type: "web",
-  dpop_bound_access_tokens: true
-};
+このプロジェクトでは、Vercel API Functions を使用して、リクエスト時のホスト名に基づいた動的な `client-metadata.json` を提供します。これにより、プレビュー環境やローカル環境ごとに `client_id` を手動で設定する必要がありません。
+
+```typescript
+// api/client-metadata.ts
+export default function handler(request: any, response: any) {
+  const protocol = request.headers['x-forwarded-proto'] || 'https';
+  const host = request.headers['x-forwarded-host'] || request.headers['host'];
+  const origin = `${protocol}://${host}`;
+
+  const metadata = {
+    client_id: `${origin}/client-metadata.json`,
+    client_name: "Bluesky Client Demo App",
+    client_uri: origin,
+    redirect_uris: [`${origin}/oauth/callback`],
+    scope: "atproto ...", // 詳細は api/_shared/auth-config.ts 参照
+    // ...
+  };
+  // ...
+}
 ```
-
-**重要なポイント**:
-- `dpop_bound_access_tokens: true` - DPoP を有効化
-- `redirect_uris` に `/oauth/callback` のみを指定
 
 ### 2. Bluesky OAuth ログイン
 
@@ -137,7 +132,7 @@ const clientMetadata = {
 // lib/bluesky-oauth.ts
 import { BrowserOAuthClient } from '@atproto/oauth-client-browser';
 
-const CLIENT_METADATA_URL = `${import.meta.env.VITE_APP_URL}/.well-known/client-metadata.json`;
+const CLIENT_METADATA_URL = `${window.location.origin}/client-metadata.json`;
 
 let clientInstance: BrowserOAuthClient | null = null;
 
@@ -153,6 +148,7 @@ export async function getBlueskyClient(): Promise<BrowserOAuthClient> {
   return clientInstance;
 }
 ```
+
 
 ### 3. ログイン処理
 
@@ -410,27 +406,12 @@ function App() {
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/client-metadata.json",
+      "destination": "/api/client-metadata"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/.well-known/client-metadata.json",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/json"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600"
-        }
-      ]
     }
   ]
 }
@@ -443,16 +424,10 @@ function App() {
    - Framework: Vite
 
 2. **環境変数設定**
-   ```
-   VITE_APP_URL=https://your-app.vercel.app
-   ```
+   - デフォルトでは環境設定は不要ですが、Chronosky API URL を変更する場合は `VITE_CHRONOSKY_API_URL` を設定してください。
 
-3. **デプロイ後**
-   - 実際の URL で `VITE_APP_URL` を更新
-   - 再デプロイ
-
-4. **動作確認**
-   - `https://your-app.vercel.app/.well-known/client-metadata.json` を確認
+3. **動作確認**
+   - `https://your-app.vercel.app/client-metadata.json` を確認
    - OAuth フローをテスト
 
 ## 重要な実装ポイント
