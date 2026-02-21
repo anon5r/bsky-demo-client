@@ -72,7 +72,9 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
   function getEmbedImages(embed: ScheduledPost['embed']): any[] {
     if (!embed) return [];
     const type = embed.$type;
-    if (type === 'app.chronosky.schedule.listPosts#imageView') {
+    if (type === 'app.chronosky.schedule.listPosts#imageView' || 
+        type === 'app.bsky.embed.images' || 
+        type === 'app.bsky.embed.images#view') {
       return embed.images || [];
     }
     if (type === 'app.bsky.embed.recordWithMedia' || type === 'app.bsky.embed.recordWithMedia#view') {

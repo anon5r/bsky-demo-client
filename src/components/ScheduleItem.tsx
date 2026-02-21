@@ -14,6 +14,7 @@ interface ScheduleItemProps {
 
 export const ScheduleItem = React.memo(({
   schedule,
+  getBlobUrl,
   onEdit,
   onDelete,
   onPreviewImage,
@@ -23,9 +24,12 @@ export const ScheduleItem = React.memo(({
   // Extract images from embed using Chronosky Lexicon view schema
   let images: any[] = [];
   const embedType = schedule.embed?.$type;
-  if (embedType === 'app.chronosky.schedule.listPosts#imageView') {
+  if (embedType === 'app.chronosky.schedule.listPosts#imageView' || 
+      embedType === 'app.bsky.embed.images' || 
+      embedType === 'app.bsky.embed.images#view') {
     images = schedule.embed!.images || [];
-  } else if (embedType === 'app.bsky.embed.recordWithMedia' || embedType === 'app.bsky.embed.recordWithMedia#view') {
+  } else if (embedType === 'app.bsky.embed.recordWithMedia' || 
+             embedType === 'app.bsky.embed.recordWithMedia#view') {
     images = schedule.embed!.media?.images || [];
   }
 
@@ -61,13 +65,14 @@ export const ScheduleItem = React.memo(({
           {images.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: images.length > 1 ? 'repeat(2, 1fr)' : '1fr', gap: 8, marginBottom: 8 }}>
               {images.map((img: any, i: number) => {
-                // Use thumb URL from Lexicon view schema
-                const thumbUrl = img.thumb;
-                const fullsizeUrl = img.fullsize || img.thumb;
+                const cid = img.cid || img.image?.ref?.$link;
+                // Use thumb URL from Lexicon view schema, fallback to blob URL if only CID is available
+                const thumbUrl = img.thumb || (cid ? getBlobUrl(cid) : null);
+                const fullsizeUrl = img.fullsize || thumbUrl;
                 if (!thumbUrl) return null;
                 
                 return (
-                  <div key={i} className="image-preview-item" style={{ width: '100%', aspectRatio: images.length === 1 ? '16/9' : '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(fullsizeUrl)}>
+                  <div key={cid || i} className="image-preview-item" style={{ width: '100%', aspectRatio: images.length === 1 ? '16/9' : '1/1', cursor: 'zoom-in', borderRadius: 8, overflow: 'hidden' }} onClick={() => onPreviewImage(fullsizeUrl)}>
                     <ImageThumbnail 
                       url={thumbUrl} 
                       alt={img.alt} 

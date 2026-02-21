@@ -24,29 +24,36 @@ export function MediaUploader({
   if (images.length === 0 && existingImages.length === 0) return null;
 
   const getCid = (img: any): string | undefined => {
-    return img.cid;
+    if (img.cid) return img.cid;
+    if (img.image?.ref?.$link) return img.image.ref.$link;
+    return undefined;
   };
 
   return (
     <div className="image-preview-grid" style={{ marginTop: 12 }}>
       {existingImages.map((img, imgIdx) => {
-        // Use thumb if available (from listPosts), otherwise fallback to blob URL via CID
-        const url = img.thumb || (getCid(img) ? getBlobUrl(getCid(img)) : null);
+        // Use thumb URL for display; fall back to blob URL via CID if thumb is unavailable
+        const cid = getCid(img);
+        const url = img.thumb || (cid ? getBlobUrl(cid) : null);
         const previewUrl = img.fullsize || url;
 
         return (
-          <div key={`existing-${imgIdx}`} className="image-preview-item" style={{ cursor: 'zoom-in' }}>
+          <div
+            key={`existing-${imgIdx}`}
+            className="image-preview-item"
+            style={{ cursor: previewUrl ? 'zoom-in' : 'default' }}
+            onClick={() => previewUrl && onPreview(previewUrl)}
+          >
             {url ? (
-              <ImageThumbnail 
-                url={url} 
-                alt={img.alt} 
+              <ImageThumbnail
+                url={url}
+                alt={img.alt}
                 fetchHandler={fetchHandler}
-                onClick={() => onPreview(previewUrl)} 
-                style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+                style={{ width: '100%', height: '100%', borderRadius: 12 }}
               />
             ) : (
               <div style={{ width: '100%', height: '100%', background: 'var(--bg-color-tertiary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--text-color-secondary)' }}>
-                Existing
+                <i className="fa-solid fa-image"></i>
               </div>
             )}
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 4, background: 'rgba(0,0,0,0.5)', borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>

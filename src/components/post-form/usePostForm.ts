@@ -166,10 +166,14 @@ export function usePostForm({
             // Update mode: use imagesEmbed format with CID references for all images
             // Existing images: CID from getPost/listPosts response
             // New/replaced images: upload via uploadBlob, then use the returned CID
-            const imageRefs: { alt: string; cid: string }[] = existingImages.map((img) => ({
-              alt: img.alt,
-              cid: img.cid,
-            }));
+            const imageRefs: { alt: string; cid: string }[] = existingImages.map((img) => {
+              const cid = img.cid || img.image?.ref?.$link;
+              if (!cid) throw new Error('Missing CID for existing image');
+              return {
+                alt: img.alt,
+                cid: cid,
+              };
+            });
             for (const img of images) {
               const compressed = await compressImage(img.file);
               const uploadRes = await client.uploadBlob(compressed as Blob);
