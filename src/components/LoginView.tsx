@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 interface LoginViewProps {
-  onLogin: (handle: string, chronoskyScope: 'none' | 'basic' | 'full') => void;
+  onLogin: (handle: string, chronoskyScope: 'basic' | 'withChronosky' | 'withChronoskyAud') => void;
 }
 
 const HISTORY_KEY = 'bsky_login_history';
@@ -10,7 +10,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
   const [handle, setHandle] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
-  const [chronoskyScope, setChronoskyScope] = useState<'none' | 'basic' | 'full'>('none');
+  const [chronoskyScope, setChronoskyScope] = useState<'basic' | 'withChronosky' | 'withChronoskyAud'>('basic');
 
   useEffect(() => {
     const stored = localStorage.getItem(HISTORY_KEY);
@@ -77,20 +77,20 @@ export function LoginView({ onLogin }: LoginViewProps) {
 
             <div style={{ margin: '20px 0', textAlign: 'left', background: 'var(--bg-color-secondary)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, color: 'var(--text-color-secondary)' }}>
-                Chronosky Scope Level (Testing)
+                Authentication Scope (Testing)
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
-                  <input type="radio" name="scope" value="none" checked={chronoskyScope === 'none'} onChange={() => setChronoskyScope('none')} />
-                  <span style={{color: 'var(--text-color)'}}>None (atproto only)</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
                   <input type="radio" name="scope" value="basic" checked={chronoskyScope === 'basic'} onChange={() => setChronoskyScope('basic')} />
-                  <span style={{color: 'var(--text-color)'}}>Basic (include:app.chronosky.authClient)</span>
+                  <span style={{color: 'var(--text-color)'}}>Basic (Bluesky only)</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
-                  <input type="radio" name="scope" value="full" checked={chronoskyScope === 'full'} onChange={() => setChronoskyScope('full')} />
-                  <span style={{color: 'var(--text-color)'}}>Full (with Audience)</span>
+                  <input type="radio" name="scope" value="withChronosky" checked={chronoskyScope === 'withChronosky'} onChange={() => setChronoskyScope('withChronosky')} />
+                  <span style={{color: 'var(--text-color)'}}>with Chronosky</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
+                  <input type="radio" name="scope" value="withChronoskyAud" checked={chronoskyScope === 'withChronoskyAud'} onChange={() => setChronoskyScope('withChronoskyAud')} />
+                  <span style={{color: 'var(--text-color)'}}>with Chronosky+aud</span>
                 </label>
               </div>
             </div>

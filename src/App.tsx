@@ -97,7 +97,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleLogin(handle: string, chronoskyScope: 'none' | 'basic' | 'full' = 'none') {
+  async function handleLogin(handle: string, chronoskyScope: 'basic' | 'withChronosky' | 'withChronoskyAud' = 'basic') {
     const client = await getBlueskyClient();
     try {
           const baseScope = [
@@ -107,9 +107,9 @@ function App() {
             'blob:video/*'
           ];
 
-          if (chronoskyScope === 'basic') {
+          if (chronoskyScope === 'withChronosky') {
             baseScope.push('include:app.chronosky.authClient');
-          } else if (chronoskyScope === 'full') {
+          } else if (chronoskyScope === 'withChronoskyAud') {
             baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc');
           }
 
