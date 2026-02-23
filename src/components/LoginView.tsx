@@ -82,15 +82,15 @@ export function LoginView({ onLogin }: LoginViewProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
                   <input type="radio" name="scope" value="none" checked={chronoskyScope === 'none'} onChange={() => setChronoskyScope('none')} />
-                  <span>None (atproto only)</span>
+                  <span style={{color: 'var(--text-color)'}}>None (atproto only)</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
                   <input type="radio" name="scope" value="basic" checked={chronoskyScope === 'basic'} onChange={() => setChronoskyScope('basic')} />
-                  <span>Basic (include:app.chronosky.authClient)</span>
+                  <span style={{color: 'var(--text-color)'}}>Basic (include:app.chronosky.authClient)</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
                   <input type="radio" name="scope" value="full" checked={chronoskyScope === 'full'} onChange={() => setChronoskyScope('full')} />
-                  <span>Full (with Audience)</span>
+                  <span style={{color: 'var(--text-color)'}}>Full (with Audience)</span>
                 </label>
               </div>
             </div>
