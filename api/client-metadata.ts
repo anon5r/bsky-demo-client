@@ -23,6 +23,7 @@ export default function handler(request: any, response: any) {
       `${origin}/oauth/callback`
     ],
     scope: OAUTH_SCOPE.join(' '),
+    resource: "https://api.chronosky.app",
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     response_mode: "query",
