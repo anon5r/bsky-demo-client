@@ -123,7 +123,7 @@ export function ScheduleList({ session, agent }: ScheduleListProps) {
         borderBottom: '1px solid var(--border-color)',
         marginBottom: 20
       }}>
-        <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>Queue</h3>
+        <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-color-secondary)' }}>Queue</h3>
         <button 
           onClick={loadSchedules} 
           className="btn-ghost" 
