@@ -15,7 +15,6 @@ import { Layout } from './components/Layout';
 import { Modal } from './components/Modal';
 import { Agent } from '@atproto/api';
 import { OAuthSession } from '@atproto/oauth-client-browser';
-import { OAUTH_SCOPE } from './lib/auth-config';
 
 type ViewState = 
   | { type: 'timeline' }
@@ -98,12 +97,25 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleLogin(handle: string) {
+  async function handleLogin(handle: string, chronoskyScope: 'none' | 'basic' | 'full' = 'none') {
     const client = await getBlueskyClient();
     try {
+          const baseScope = [
+            'atproto',
+            'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
+            'blob:image/*',
+            'blob:video/*'
+          ];
+
+          if (chronoskyScope === 'basic') {
+            baseScope.push('include:app.chronosky.authClient');
+          } else if (chronoskyScope === 'full') {
+            baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc');
+          }
+
           await client.signIn(handle, {
             state: crypto.randomUUID(),
-            scope: OAUTH_SCOPE.join(' '),
+            scope: baseScope.join(' '),
           });
     } catch (e) {
       console.error("Login failed", e);

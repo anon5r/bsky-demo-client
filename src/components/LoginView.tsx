@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 interface LoginViewProps {
-  onLogin: (handle: string) => void;
+  onLogin: (handle: string, chronoskyScope: 'none' | 'basic' | 'full') => void;
 }
 
 const HISTORY_KEY = 'bsky_login_history';
@@ -10,6 +10,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
   const [handle, setHandle] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
+  const [chronoskyScope, setChronoskyScope] = useState<'none' | 'basic' | 'full'>('none');
 
   useEffect(() => {
     const stored = localStorage.getItem(HISTORY_KEY);
@@ -46,7 +47,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
     }
     
     saveToHistory(cleanHandle);
-    await onLogin(cleanHandle);
+    await onLogin(cleanHandle, chronoskyScope);
     setLoading(false);
   };
 
@@ -73,6 +74,26 @@ export function LoginView({ onLogin }: LoginViewProps) {
               disabled={loading}
               autoFocus
             />
+
+            <div style={{ margin: '20px 0', textAlign: 'left', background: 'var(--bg-color-secondary)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, color: 'var(--text-color-secondary)' }}>
+                Chronosky Scope Level (Testing)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
+                  <input type="radio" name="scope" value="none" checked={chronoskyScope === 'none'} onChange={() => setChronoskyScope('none')} />
+                  <span>None (atproto only)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
+                  <input type="radio" name="scope" value="basic" checked={chronoskyScope === 'basic'} onChange={() => setChronoskyScope('basic')} />
+                  <span>Basic (include:app.chronosky.authClient)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
+                  <input type="radio" name="scope" value="full" checked={chronoskyScope === 'full'} onChange={() => setChronoskyScope('full')} />
+                  <span>Full (with Audience)</span>
+                </label>
+              </div>
+            </div>
             
             <button 
                 type="submit" 
