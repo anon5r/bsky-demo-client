@@ -103,8 +103,6 @@ function App() {
           const baseScope = [
             'atproto',
             'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
-            'blob:image/*',
-            'blob:video/*'
           ];
 
           if (chronoskyScope === 'withChronosky') {
@@ -113,6 +111,11 @@ function App() {
             // baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc');
             baseScope.push('include:app.chronosky.authClient?aud=*');
           }
+
+          [
+            'blob:image/*',
+            'blob:video/*'
+          ].forEach(blobs => baseScope.push(blobs));
 
           await client.signIn(handle, {
             state: crypto.randomUUID(),
