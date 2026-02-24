@@ -97,7 +97,12 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleLogin(handle: string, chronoskyScope: 'basic' | 'withChronosky' | 'withChronoskyWithAud' | 'withChronoskyAudAll' | 'withChronoskyAudByApi' = 'basic') {
+  async function handleLogin(handle: string, chronoskyScope:
+    'basic'
+    | 'withChronosky'
+    | 'withChronoskyAud'
+    | 'withChronoskyAudAll'
+    | 'withChronoskyAudByApi' = 'basic') {
     const client = await getBlueskyClient();
     try {
           const baseScope = [
