@@ -1,7 +1,7 @@
 const OAUTH_SCOPE = [
   'atproto',
   'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
-  'include:app.chronosky.authClient?aud=%2A',
+  'include:app.chronosky.authClient?aud=*',
   'blob:image/*',
   'blob:video/*',
 ];
