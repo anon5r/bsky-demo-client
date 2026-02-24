@@ -107,15 +107,15 @@ function App() {
     try {
           const baseScope = [
             'atproto',
-            'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
+            'include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview',
           ];
 
           if (chronoskyScope === 'withChronosky') {
             baseScope.push('include:app.chronosky.authClient');
           } else if (chronoskyScope === 'withChronoskyAudAll') {
-            baseScope.push('include:app.chronosky.authClient?aud=%2A');
+            baseScope.push('include:app.chronosky.authClient?aud=*');
           } else if (chronoskyScope === 'withChronoskyAudByApi') {
-            baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_api');
+            baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app#chronosky_api');
           }
 
           [
