@@ -3,10 +3,7 @@ import React, { useState, useEffect } from 'react';
 interface LoginViewProps {
   onLogin: (handle: string, chronoskyScope:
     'basic'
-    | 'withChronosky'
-    | 'withChronoskyAud'
-    | 'withChronoskyAudAll'
-    | 'withChronoskyAudByApi') => void;
+    | 'withChronosky') => void;
 }
 
 const HISTORY_KEY = 'bsky_login_history';
@@ -17,10 +14,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
   const [history, setHistory] = useState<string[]>([]);
   const [chronoskyScope, setChronoskyScope] = useState<
     'basic'
-    | 'withChronosky'
-    | 'withChronoskyAud'
-    | 'withChronoskyAudAll'
-    | 'withChronoskyAudByApi'>('basic');
+    | 'withChronosky'>('basic');
 
   useEffect(() => {
     const stored = localStorage.getItem(HISTORY_KEY);
@@ -97,14 +91,6 @@ export function LoginView({ onLogin }: LoginViewProps) {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
                   <input type="radio" name="scope" value="withChronosky" checked={chronoskyScope === 'withChronosky'} onChange={() => setChronoskyScope('withChronosky')} />
                   <span style={{color: 'var(--text-color)'}}>with Chronosky</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
-                  <input type="radio" name="scope" value="withChronoskyAudAll" checked={chronoskyScope === 'withChronoskyAudAll'} onChange={() => setChronoskyScope('withChronoskyAudAll')} />
-                  <span style={{color: 'var(--text-color)'}}>with Chronosky ?aud=*</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
-                  <input type="radio" name="scope" value="withChronoskyAudByApi" checked={chronoskyScope === 'withChronoskyAudByApi'} onChange={() => setChronoskyScope('withChronoskyAudByApi')} />
-                  <span style={{color: 'var(--text-color)'}}>with Chronosky ?aud=did:web:chronosky.app</span>
                 </label>
               </div>
             </div>

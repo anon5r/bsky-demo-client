@@ -100,9 +100,7 @@ function App() {
   async function handleLogin(handle: string, chronoskyScope:
     'basic'
     | 'withChronosky'
-    | 'withChronoskyAud'
-    | 'withChronoskyAudAll'
-    | 'withChronoskyAudByApi' = 'basic') {
+    | 'withChronoskyAud' = 'basic') {
     const client = await getBlueskyClient();
     try {
           const baseScope = [
@@ -111,10 +109,6 @@ function App() {
           ];
 
           if (chronoskyScope === 'withChronosky') {
-            baseScope.push('include:app.chronosky.authClient');
-          } else if (chronoskyScope === 'withChronoskyAudAll') {
-            baseScope.push('include:app.chronosky.authClient?aud=%2A');
-          } else if (chronoskyScope === 'withChronoskyAudByApi') {
             baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23scheduler_api');
           }
 
