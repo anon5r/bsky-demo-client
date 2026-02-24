@@ -108,9 +108,10 @@ function App() {
           ];
 
           if (chronoskyScope === 'withChronosky') {
-            baseScope.push('include:app.chronosky.authClient?aud=*');
+            baseScope.push('include:app.chronosky.authClient');
           } else if (chronoskyScope === 'withChronoskyAud') {
-            baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc');
+            // baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc');
+            baseScope.push('include:app.chronosky.authClient?aud=*');
           }
 
           await client.signIn(handle, {
