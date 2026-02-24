@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 interface LoginViewProps {
-  onLogin: (handle: string, chronoskyScope: 'basic' | 'withChronosky' | 'withChronoskyAud') => void;
+  onLogin: (handle: string, chronoskyScope: 'basic' | 'withChronosky' | 'withChronoskyAud' | 'withChronoskyAudAll' | 'withChronoskyAudByApi') => void;
 }
 
 const HISTORY_KEY = 'bsky_login_history';
@@ -10,7 +10,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
   const [handle, setHandle] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
-  const [chronoskyScope, setChronoskyScope] = useState<'basic' | 'withChronosky' | 'withChronoskyAud'>('basic');
+  const [chronoskyScope, setChronoskyScope] = useState<'basic' | 'withChronosky' | 'withChronoskyAud' | 'withChronoskyAudAll' | 'withChronoskyAudByApi'>('basic');
 
   useEffect(() => {
     const stored = localStorage.getItem(HISTORY_KEY);
@@ -89,8 +89,12 @@ export function LoginView({ onLogin }: LoginViewProps) {
                   <span style={{color: 'var(--text-color)'}}>with Chronosky</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
-                  <input type="radio" name="scope" value="withChronoskyAud" checked={chronoskyScope === 'withChronoskyAud'} onChange={() => setChronoskyScope('withChronoskyAud')} />
-                  <span style={{color: 'var(--text-color)'}}>with Chronosky+aud</span>
+                  <input type="radio" name="scope" value="withChronoskyAud" checked={chronoskyScope === 'withChronoskyAudAll'} onChange={() => setChronoskyScope('withChronoskyAud')} />
+                  <span style={{color: 'var(--text-color)'}}>with Chronosky ?aud=*</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem' }}>
+                  <input type="radio" name="scope" value="withChronoskyAud" checked={chronoskyScope === 'withChronoskyAudByApi'} onChange={() => setChronoskyScope('withChronoskyAud')} />
+                  <span style={{color: 'var(--text-color)'}}>with Chronosky ?aud=did:web:chronosky.app</span>
                 </label>
               </div>
             </div>
