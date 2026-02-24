@@ -115,7 +115,7 @@ function App() {
           } else if (chronoskyScope === 'withChronoskyAudAll') {
             baseScope.push('include:app.chronosky.authClient?aud=%2A');
           } else if (chronoskyScope === 'withChronoskyAudByApi') {
-            baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_api');
+            baseScope.push('include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23scheduler_api');
           }
 
           [

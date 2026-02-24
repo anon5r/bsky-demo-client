@@ -188,7 +188,7 @@ Protocol エコシステムの一部として動作しながら、予約投稿�
   "client_name": "Your App Name",
   "client_uri": "https://your-app.example.com",
   "redirect_uris": ["https://your-app.example.com/oauth/callback"],
-  "scope": "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc blob:image/* blob:video/*",
+  "scope": "atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23scheduler_api blob:image/* blob:video/*",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "token_endpoint_auth_method": "none",
@@ -200,15 +200,15 @@ Protocol エコシステムの一部として動作しながら、予約投稿�
 
 #### 2. 必須フィールドの説明
 
-| フィールド                 | 説明                             | 例                                                                                                                     |
-| -------------------------- | -------------------------------- |-----------------------------------------------------------------------------------------------------------------------|
-| `client_id`                | このメタデータファイル自身の URL | `https://your-app.example.com/client-metadata.json`                                                                   |
-| `client_name`              | アプリケーション名               | `"My Bluesky Client"`                                                                                                 |
-| `client_uri`               | アプリケーションの URL           | `https://your-app.example.com`                                                                                        |
-| `redirect_uris`            | OAuth コールバック URL（配列）   | `["https://your-app.example.com/oauth/callback"]`                                                                     |
-| `scope`                    | 必要な OAuth スコープ            | `"atproto include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc" blob:image/* blob:video/*` |
-| `dpop_bound_access_tokens` | DPoP 必須（true に設定）         | `true`                                                                                                                |
-| `require_pkce`             | PKCE 必須（true に設定）         | `true`                                                                                                                |
+| フィールド                 | 説明                             | 例                                                                                                                    |
+| -------------------------- | -------------------------------- |----------------------------------------------------------------------------------------------------------------------|
+| `client_id`                | このメタデータファイル自身の URL | `https://your-app.example.com/client-metadata.json`                                                                  |
+| `client_name`              | アプリケーション名               | `"My Bluesky Client"`                                                                                                |
+| `client_uri`               | アプリケーションの URL           | `https://your-app.example.com`                                                                                       |
+| `redirect_uris`            | OAuth コールバック URL（配列）   | `["https://your-app.example.com/oauth/callback"]`                                                                    |
+| `scope`                    | 必要な OAuth スコープ            | `"atproto include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23scheduler_api" blob:image/* blob:video/*` |
+| `dpop_bound_access_tokens` | DPoP 必須（true に設定）         | `true`                                                                                                               |
+| `require_pkce`             | PKCE 必須（true に設定）         | `true`                                                                                                               |
 
 #### 3. CORS ヘッダーの設定
 
@@ -245,7 +245,7 @@ app.get('/client-metadata.json', (req, res) => {
     client_name: 'Your App Name',
     client_uri: 'https://your-app.example.com',
     redirect_uris: ['https://your-app.example.com/oauth/callback'],
-    scope: 'atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc blob:image/* blob:video/*',
+    scope: 'atproto include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23scheduler_api blob:image/* blob:video/*',
     grant_types: ['authorization_code', 'refresh_token'],
     response_types: ['code'],
     token_endpoint_auth_method: 'none',
@@ -400,7 +400,7 @@ const oauthClient = new OAuthClient({
   scopes: [
     'atproto',
     'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
-    'include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc',
+    'include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23scheduler_api',
     'blob:image/*',
     'blob:video/*'
   ],
@@ -1643,7 +1643,7 @@ class ChronoskyClient {
       scopes: [
         'atproto',
         'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
-        'include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23chronosky_xrpc',
+        'include:app.chronosky.authClient?aud=did:web:api.chronosky.app%23scheduler_api',
         'blob:image/*',
         'blob:video/*'
       ],
