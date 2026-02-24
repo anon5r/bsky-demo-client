@@ -102,7 +102,6 @@ function App() {
     try {
           const baseScope = [
             'atproto',
-            'include:app.bsky.authFullApp?aud=did:web:api.bsky.app%23bsky_appview',
           ];
 
           if (chronoskyScope === 'withChronosky') {
@@ -113,6 +112,7 @@ function App() {
           }
 
           [
+            'include:app.bsky.authFullApp?aud=did:web:api.bsky.app#bsky_appview',
             'blob:image/*',
             'blob:video/*'
           ].forEach(blobs => baseScope.push(blobs));
